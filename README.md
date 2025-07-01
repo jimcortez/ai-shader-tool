@@ -4,6 +4,7 @@ A Python project for rendering ISF (Interactive Shader Format) shaders using the
 
 ## Features
 
+- **Complete ISF Shader Rendering Pipeline** - High-level Python API for rendering ISF shaders to images
 - Cross-platform ISF shader rendering using VVISF-GL
 - GLFW-based OpenGL context creation for headless/offscreen rendering
 - **Python bindings for VVISF** - Complete Python API for ISF shader rendering
@@ -11,6 +12,9 @@ A Python project for rendering ISF (Interactive Shader Format) shaders using the
 - Comprehensive ISF shader support (Source, Filter, Transition types)
 - Real-time shader rendering with time-based animations
 - Input attribute management and uniform control
+- **High-level ShaderRenderer class** - Easy-to-use Python interface for ISF rendering
+- **Configuration system** - YAML-based configuration for batch rendering
+- **CLI interface** - Command-line tool for shader rendering
 
 ## Prerequisites
 
@@ -134,9 +138,201 @@ which python  # Should point to your pyenv-managed Python
 
 ## Python API Documentation
 
-The project provides comprehensive Python bindings for the VVISF library, allowing you to render ISF shaders directly from Python.
+The project provides both low-level Python bindings for VVISF and a high-level Python API for easy ISF shader rendering.
 
-### Importing the Bindings
+### High-Level API - ShaderRenderer
+
+The `ShaderRenderer` class provides a simple, high-level interface for rendering ISF shaders to images.
+
+#### Basic Usage
+
+```python
+from isf_shader_renderer.renderer import ShaderRenderer
+from isf_shader_renderer.config import Config, Defaults
+from pathlib import Path
+
+# Create configuration
+config = Config()
+config.defaults = Defaults(width=1920, height=1080, quality=95)
+
+# Create renderer
+renderer = ShaderRenderer(config)
+
+# Render a simple shader
+shader_content = """/*{
+    "DESCRIPTION": "Test shader",
+    "CREDIT": "Test",
+    "CATEGORIES": ["Test"],
+    "INPUTS": []
+}*/
+void main() { 
+    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); 
+}"""
+
+# Render frame at time 0.0
+output_path = Path("output/test_frame.png")
+renderer.render_frame(shader_content, 0.0, output_path)
+```
+
+#### Rendering with Custom Inputs
+
+```python
+from isf_shader_renderer.config import ShaderConfig
+
+# Create shader configuration with custom inputs
+shader_config = ShaderConfig(
+    input="eye_shader.fs",
+    output="output/eye_%04d.png",
+    times=[0.0, 1.0, 2.0],
+    width=1280,
+    height=720,
+    inputs={
+        "irisHue": 0.6,
+        "pupilSize": 0.15,
+        "eyeMovementSpeed": 1.2,
+        "reflectionIntensity": 0.8
+    }
+)
+
+# Render with custom configuration
+renderer.render_frame(
+    shader_content, 
+    1.5, 
+    Path("output/eye_with_inputs.png"), 
+    shader_config
+)
+```
+
+#### Shader Validation and Information
+
+```python
+# Validate shader
+is_valid = renderer.validate_shader(shader_content)
+print(f"Shader is valid: {is_valid}")
+
+# Get detailed shader information
+info = renderer.get_shader_info(shader_content)
+print(f"Shader name: {info['name']}")
+print(f"Description: {info['description']}")
+print(f"Inputs: {len(info['inputs'])}")
+for input_info in info['inputs']:
+    print(f"  - {input_info['name']}: {input_info['type']}")
+```
+
+#### Batch Rendering
+
+```python
+# Render multiple frames
+times = [0.0, 0.5, 1.0, 1.5, 2.0]
+for i, time_code in enumerate(times):
+    output_path = Path(f"output/frame_{i:04d}.png")
+    renderer.render_frame(shader_content, time_code, output_path)
+    print(f"Rendered frame {i+1}/{len(times)}")
+
+# Clean up resources
+renderer.cleanup()
+```
+
+#### Complex Shader Example
+
+```python
+# Render a complex spherical eye shader
+complex_shader = """/*{
+    "CATEGORIES": [],
+    "CREDIT": "Jim Cortez - Commune Project",
+    "DESCRIPTION": "Advanced spherical human eyeball with realistic anatomy",
+    "INPUTS": [
+        {"NAME": "irisHue", "TYPE": "float", "DEFAULT": 0.6, "MIN": 0.0, "MAX": 1.0},
+        {"NAME": "pupilSize", "TYPE": "float", "DEFAULT": 0.12, "MIN": 0.05, "MAX": 0.3},
+        {"NAME": "eyeMovementSpeed", "TYPE": "float", "DEFAULT": 0.8, "MIN": 0.0, "MAX": 3.0}
+    ],
+    "ISFVSN": "2"
+}*/
+// ... shader code ...
+void main() { 
+    // Complex eye rendering logic
+    gl_FragColor = vec4(col, 1.0); 
+}"""
+
+# Render with custom parameters
+shader_config = ShaderConfig(
+    input="eye.fs",
+    output="output/eye.png",
+    times=[0.0],
+    width=1920,
+    height=1080,
+    inputs={
+        "irisHue": 0.8,        # Blue iris
+        "pupilSize": 0.15,     # Larger pupil
+        "eyeMovementSpeed": 1.2 # Faster movement
+    }
+)
+
+renderer.render_frame(complex_shader, 0.0, Path("output/eye.png"), shader_config)
+```
+
+### Configuration System
+
+The project includes a YAML-based configuration system for batch rendering.
+
+#### Configuration File Example
+
+```yaml
+defaults:
+  width: 1920
+  height: 1080
+  quality: 95
+  output_format: png
+
+shaders:
+  - input: "shaders/example.fs"
+    output: "output/example_%04d.png"
+    times: [0.0, 0.5, 1.0, 1.5, 2.0]
+    width: 1280
+    height: 720
+    inputs:
+      color: [1.0, 0.0, 0.0, 1.0]
+      speed: 2.0
+  
+  - input: "shaders/eye.fs"
+    output: "output/eye_%04d.png"
+    times: [0.0, 1.0, 2.0, 3.0]
+    width: 1920
+    height: 1080
+    inputs:
+      irisHue: 0.6
+      pupilSize: 0.12
+      eyeMovementSpeed: 0.8
+```
+
+#### Loading Configuration
+
+```python
+from isf_shader_renderer.config import load_config
+
+# Load configuration from file
+config = load_config(Path("config.yaml"))
+
+# Create renderer with configuration
+renderer = ShaderRenderer(config)
+
+# Render all shaders in configuration
+for shader_config in config.shaders:
+    # Load shader content from file
+    with open(shader_config.input, 'r') as f:
+        shader_content = f.read()
+    
+    # Render all time frames
+    for time_code in shader_config.times:
+        output_path = Path(shader_config.output.replace("%04d", f"{int(time_code*100):04d}"))
+        renderer.render_frame(shader_content, time_code, output_path, shader_config)
+```
+
+### Low-Level API - VVISF Bindings
+
+The project also provides direct access to the VVISF library through Python bindings.
+
+#### Importing the Bindings
 
 ```python
 import vvisf_bindings as vvisf
@@ -146,9 +342,9 @@ print(f"Platform: {vvisf.get_platform_info()}")
 print(f"VVISF Available: {vvisf.is_vvisf_available()}")
 ```
 
-### Core Classes
+#### Core Classes
 
-#### ISFDoc - ISF Document Management
+##### ISFDoc - ISF Document Management
 
 The `ISFDoc` class represents an ISF file and provides access to its properties and inputs.
 
@@ -175,7 +371,7 @@ frag_source = doc.frag_shader_source()
 vert_source = doc.vert_shader_source()
 ```
 
-#### ISFScene - Shader Rendering
+##### ISFScene - Shader Rendering
 
 The `ISFScene` class handles the actual rendering of ISF shaders.
 
@@ -196,7 +392,7 @@ size = VVGL.Size(1920, 1080)
 buffer = scene.create_and_render_a_buffer(size)
 ```
 
-#### ISFAttr - Input Attributes
+##### ISFAttr - Input Attributes
 
 The `ISFAttr` class represents individual input attributes in an ISF shader.
 
@@ -225,25 +421,25 @@ attr = vvisf.ISFAttr(
 )
 ```
 
-### Enum String Conversion
+#### Enum String Conversion
 
 - Enum string conversion returns the value name, e.g. `str(vvisf.ISFValType.Float)` returns `'Float'`.
 
-### Value Extraction
+#### Value Extraction
 
 - Use `get_double_val()` for float values from ISFVal.
 - Use `get_bool_val()`, `get_long_val()`, etc. for other types.
 
-### Test Status
+#### Test Status
 
 - **All tests pass and the API is stable as of the latest build.**
 
-### Known Limitations
+#### Known Limitations
 
 - Direct timestamp objects (e.g., VVGL::Timestamp) are not yet bound, but all core features are stable and tested.
 - Enum string conversion returns the value name, not the full enum path.
 
-### Value Types
+#### Value Types
 
 The bindings support all ISF value types:
 
@@ -268,9 +464,9 @@ event_val = vvisf.ISFEventVal(True)
 null_val = vvisf.ISFNullVal()
 ```
 
-### Working with ISF Files
+#### Working with ISF Files
 
-#### Scanning for ISF Files
+##### Scanning for ISF Files
 
 ```python
 # Scan directory for ISF files
@@ -287,7 +483,7 @@ default_files = vvisf.get_default_isf_files()
 is_isf = vvisf.file_is_probably_isf("path/to/file.fs")
 ```
 
-#### Complete Rendering Example
+##### Complete Rendering Example
 
 ```python
 import vvisf_bindings as vvisf
@@ -316,7 +512,7 @@ for frame in range(60):
     time.sleep(1/30)  # 30 FPS
 ```
 
-### Error Handling
+#### Error Handling
 
 The bindings include proper error handling:
 
@@ -327,14 +523,14 @@ except vvisf.VVISFError as e:
     print(f"Error loading ISF file: {e}")
 ```
 
-### Platform Support
+#### Platform Support
 
 The Python bindings work on all supported platforms:
 - **macOS**: Full support with GLFW backend
 - **Linux**: Full support with GLFW backend  
 - **Windows**: Full support with GLFW backend
 
-### Manual Setup
+#### Manual Setup
 
 1. **Initialize submodules:**
    ```bash
@@ -631,7 +827,7 @@ curl https://pyenv.run | bash
 ```
 
 #### 10. **"Python bindings not found"**
-**Error:** `ModuleNotFoundError: No module named 'vvisf_bindings'`
+**Error:** `ModuleNotFoundError: No module named 'vvisf_bindings'
 
 **Solution:**
 ```bash
@@ -750,24 +946,29 @@ If you're still experiencing issues:
 
 ## Current Status
 
-### ✅ Completed (Step 1)
+### ✅ Completed (Phase 4 - Complete Implementation)
 - **GLFW Integration**: Successfully integrated GLFW for cross-platform OpenGL context creation
 - **VVISF-GL Build System**: Created automated build scripts for VVISF-GL with GLFW support
 - **Git Submodules**: Set up proper dependency management using git submodules
 - **Cross-Platform Support**: Working on macOS with ARM64 architecture
 - **OpenGL Context Creation**: Successfully creating hidden GLFW windows for offscreen rendering
 - **VVISF Scene Creation**: Basic VVISF scene instantiation working
+- **Python Bindings**: Complete pybind11 bindings for VVISF library
+- **High-Level Python API**: ShaderRenderer class for easy ISF shader rendering
+- **Configuration System**: YAML-based configuration for batch rendering
+- **CLI Interface**: Command-line tool for shader rendering
+- **Comprehensive Testing**: All tests pass, including complex shader rendering
+- **Documentation**: Complete API documentation and examples
 
 ### 🔄 In Progress
-- **Python Bindings**: Planned using pybind11
-- **ISF Shader Loading**: Integration with actual ISF shader files
-- **Rendering Pipeline**: Complete rendering workflow
+- **Performance Optimization**: Ongoing optimization of rendering pipeline
+- **Advanced Features**: Support for image inputs and custom uniforms
 
 ### 📋 Planned
-- **CLI Interface**: Command-line tool for shader rendering
-- **Configuration System**: YAML-based configuration
-- **Batch Processing**: Multiple shader rendering
-- **Output Formats**: PNG, JPEG, and other image formats
+- **Batch Processing**: Multiple shader rendering optimization
+- **Output Formats**: Additional image formats (JPEG, TIFF, etc.)
+- **Real-time Preview**: Live shader preview capabilities
+- **Shader Library**: Collection of example ISF shaders
 
 ## License
 

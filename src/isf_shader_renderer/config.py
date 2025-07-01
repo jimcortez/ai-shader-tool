@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import yaml
 from jsonschema import validate
@@ -28,6 +28,7 @@ class ShaderConfig:
     width: Optional[int] = None
     height: Optional[int] = None
     quality: Optional[int] = None
+    inputs: Optional[Dict[str, Any]] = None
     
     def get_width(self, defaults: Defaults) -> int:
         """Get width, falling back to defaults if not specified."""
@@ -80,6 +81,7 @@ CONFIG_SCHEMA = {
                     "width": {"type": "integer", "minimum": 1},
                     "height": {"type": "integer", "minimum": 1},
                     "quality": {"type": "integer", "minimum": 1, "maximum": 100},
+                    "inputs": {"type": "object"},
                 },
                 "additionalProperties": False,
             },
@@ -126,6 +128,7 @@ def load_config(config_path: Path) -> Config:
                 width=shader_data.get("width"),
                 height=shader_data.get("height"),
                 quality=shader_data.get("quality"),
+                inputs=shader_data.get("inputs"),
             )
             config.shaders.append(shader_config)
     
@@ -149,6 +152,7 @@ def save_config(config: Config, config_path: Path) -> None:
                 **({"width": shader.width} if shader.width is not None else {}),
                 **({"height": shader.height} if shader.height is not None else {}),
                 **({"quality": shader.quality} if shader.quality is not None else {}),
+                **({"inputs": shader.inputs} if shader.inputs is not None else {}),
             }
             for shader in config.shaders
         ],

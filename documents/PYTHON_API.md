@@ -1,18 +1,20 @@
 # VVISF Python API Documentation
 
-This document provides comprehensive documentation for the VVISF Python bindings, which allow you to render ISF (Interactive Shader Format) shaders directly from Python.
+This document provides comprehensive documentation for the VVISF Python bindings and the high-level ShaderRenderer API, which allow you to render ISF (Interactive Shader Format) shaders directly from Python.
 
 ## Table of Contents
 
 1. [Installation and Setup](#installation-and-setup)
-2. [Basic Usage](#basic-usage)
-3. [Core Classes](#core-classes)
-4. [Value Types](#value-types)
-5. [Working with ISF Files](#working-with-isf-files)
-6. [Rendering Examples](#rendering-examples)
-7. [Error Handling](#error-handling)
-8. [Performance Considerations](#performance-considerations)
-9. [Platform Support](#platform-support)
+2. [High-Level API - ShaderRenderer](#high-level-api---shaderrenderer)
+3. [Configuration System](#configuration-system)
+4. [Low-Level API - VVISF Bindings](#low-level-api---vvisf-bindings)
+5. [Core Classes](#core-classes)
+6. [Value Types](#value-types)
+7. [Working with ISF Files](#working-with-isf-files)
+8. [Rendering Examples](#rendering-examples)
+9. [Error Handling](#error-handling)
+10. [Performance Considerations](#performance-considerations)
+11. [Platform Support](#platform-support)
 
 ## Installation and Setup
 
@@ -44,38 +46,292 @@ cmake ..
 make vvisf_bindings
 ```
 
-### Importing the Module
+### Installing the Package
+
+```bash
+# Install in development mode
+pip install -e .
+
+# Or install with development dependencies
+pip install -e ".[dev]"
+```
+
+### Importing the Modules
 
 ```python
-import vvisf_bindings as vvisf
+# High-level API
+from isf_shader_renderer.renderer import ShaderRenderer
+from isf_shader_renderer.config import Config, Defaults, ShaderConfig
+
+# Low-level API
+import isf_shader_renderer.vvisf_bindings as vvisf
 
 # Check if VVISF is available
 if not vvisf.is_vvisf_available():
-    raise RuntimeError("VVISF is not available")
+    print("Warning: VVISF is not available, using placeholder renderer")
 
 # Get platform information
 print(f"Platform: {vvisf.get_platform_info()}")
 ```
 
-## Basic Usage
+## High-Level API - ShaderRenderer
 
-### Simple Shader Rendering
+The `ShaderRenderer` class provides a simple, high-level interface for rendering ISF shaders to images. It handles OpenGL context management, shader loading, input setting, and image output automatically.
+
+### Basic Usage
 
 ```python
-import vvisf_bindings as vvisf
+from isf_shader_renderer.renderer import ShaderRenderer
+from isf_shader_renderer.config import Config, Defaults
+from pathlib import Path
 
-# Create a scene
-scene = vvisf.CreateISFSceneRef()
+# Create configuration
+config = Config()
+config.defaults = Defaults(width=1920, height=1080, quality=95)
 
-# Load an ISF shader
-scene.use_file("path/to/shader.fs")
+# Create renderer
+renderer = ShaderRenderer(config)
 
-# Render a frame
-size = vvisf.VVGL.Size(1920, 1080)
-buffer = scene.create_and_render_a_buffer(size)
+# Render a simple shader
+shader_content = """/*{
+    "DESCRIPTION": "Test shader",
+    "CREDIT": "Test",
+    "CATEGORIES": ["Test"],
+    "INPUTS": []
+}*/
+void main() { 
+    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); 
+}"""
 
-# The buffer contains the rendered image data
-print(f"Rendered buffer: {buffer}")
+# Render frame at time 0.0
+output_path = Path("output/test_frame.png")
+renderer.render_frame(shader_content, 0.0, output_path)
+```
+
+### Rendering with Custom Inputs
+
+```python
+from isf_shader_renderer.config import ShaderConfig
+
+# Create shader configuration with custom inputs
+shader_config = ShaderConfig(
+    input="eye_shader.fs",
+    output="output/eye_%04d.png",
+    times=[0.0, 1.0, 2.0],
+    width=1280,
+    height=720,
+    inputs={
+        "irisHue": 0.6,
+        "pupilSize": 0.15,
+        "eyeMovementSpeed": 1.2,
+        "reflectionIntensity": 0.8
+    }
+)
+
+# Render with custom configuration
+renderer.render_frame(
+    shader_content, 
+    1.5, 
+    Path("output/eye_with_inputs.png"), 
+    shader_config
+)
+```
+
+### Shader Validation and Information
+
+```python
+# Validate shader
+is_valid = renderer.validate_shader(shader_content)
+print(f"Shader is valid: {is_valid}")
+
+# Get detailed shader information
+info = renderer.get_shader_info(shader_content)
+print(f"Shader name: {info['name']}")
+print(f"Description: {info['description']}")
+print(f"Inputs: {len(info['inputs'])}")
+for input_info in info['inputs']:
+    print(f"  - {input_info['name']}: {input_info['type']}")
+    print(f"    Description: {input_info['description']}")
+    print(f"    Label: {input_info['label']}")
+```
+
+### Batch Rendering
+
+```python
+# Render multiple frames
+times = [0.0, 0.5, 1.0, 1.5, 2.0]
+for i, time_code in enumerate(times):
+    output_path = Path(f"output/frame_{i:04d}.png")
+    renderer.render_frame(shader_content, time_code, output_path)
+    print(f"Rendered frame {i+1}/{len(times)}")
+
+# Clean up resources
+renderer.cleanup()
+```
+
+### Complex Shader Example
+
+```python
+# Render a complex spherical eye shader
+complex_shader = """/*{
+    "CATEGORIES": [],
+    "CREDIT": "Jim Cortez - Commune Project",
+    "DESCRIPTION": "Advanced spherical human eyeball with realistic anatomy",
+    "INPUTS": [
+        {"NAME": "irisHue", "TYPE": "float", "DEFAULT": 0.6, "MIN": 0.0, "MAX": 1.0},
+        {"NAME": "pupilSize", "TYPE": "float", "DEFAULT": 0.12, "MIN": 0.05, "MAX": 0.3},
+        {"NAME": "eyeMovementSpeed", "TYPE": "float", "DEFAULT": 0.8, "MIN": 0.0, "MAX": 3.0}
+    ],
+    "ISFVSN": "2"
+}*/
+// ... shader code ...
+void main() { 
+    // Complex eye rendering logic
+    gl_FragColor = vec4(col, 1.0); 
+}"""
+
+# Render with custom parameters
+shader_config = ShaderConfig(
+    input="eye.fs",
+    output="output/eye.png",
+    times=[0.0],
+    width=1920,
+    height=1080,
+    inputs={
+        "irisHue": 0.8,        # Blue iris
+        "pupilSize": 0.15,     # Larger pupil
+        "eyeMovementSpeed": 1.2 # Faster movement
+    }
+)
+
+renderer.render_frame(complex_shader, 0.0, Path("output/eye.png"), shader_config)
+```
+
+### Error Handling and Fallbacks
+
+The ShaderRenderer includes robust error handling and fallbacks:
+
+```python
+# If VVISF is not available, the renderer falls back to placeholder rendering
+if not vvisf.is_vvisf_available():
+    print("Warning: Using placeholder renderer")
+    # The renderer will still work, but with placeholder images
+
+# The renderer handles shader errors gracefully
+try:
+    renderer.render_frame(invalid_shader, 0.0, output_path)
+except Exception as e:
+    print(f"Rendering failed: {e}")
+    # The renderer will create a fallback image
+```
+
+## Configuration System
+
+The project includes a YAML-based configuration system for batch rendering.
+
+### Configuration File Example
+
+```yaml
+defaults:
+  width: 1920
+  height: 1080
+  quality: 95
+  output_format: png
+
+shaders:
+  - input: "shaders/example.fs"
+    output: "output/example_%04d.png"
+    times: [0.0, 0.5, 1.0, 1.5, 2.0]
+    width: 1280
+    height: 720
+    inputs:
+      color: [1.0, 0.0, 0.0, 1.0]
+      speed: 2.0
+  
+  - input: "shaders/eye.fs"
+    output: "output/eye_%04d.png"
+    times: [0.0, 1.0, 2.0, 3.0]
+    width: 1920
+    height: 1080
+    inputs:
+      irisHue: 0.6
+      pupilSize: 0.12
+      eyeMovementSpeed: 0.8
+```
+
+### Loading and Using Configuration
+
+```python
+from isf_shader_renderer.config import load_config, save_config, create_default_config
+
+# Load configuration from file
+config = load_config(Path("config.yaml"))
+
+# Create renderer with configuration
+renderer = ShaderRenderer(config)
+
+# Render all shaders in configuration
+for shader_config in config.shaders:
+    # Load shader content from file
+    with open(shader_config.input, 'r') as f:
+        shader_content = f.read()
+    
+    # Render all time frames
+    for time_code in shader_config.times:
+        output_path = Path(shader_config.output.replace("%04d", f"{int(time_code*100):04d}"))
+        renderer.render_frame(shader_content, time_code, output_path, shader_config)
+
+# Save configuration
+save_config(config, Path("config_updated.yaml"))
+
+# Create default configuration
+create_default_config(Path("config_default.yaml"))
+```
+
+### Configuration Classes
+
+```python
+from isf_shader_renderer.config import Config, Defaults, ShaderConfig
+
+# Create configuration programmatically
+config = Config()
+
+# Set defaults
+config.defaults = Defaults(
+    width=1920,
+    height=1080,
+    quality=95,
+    output_format="png"
+)
+
+# Add shader configurations
+shader_config = ShaderConfig(
+    input="shaders/test.fs",
+    output="output/test_%04d.png",
+    times=[0.0, 1.0, 2.0],
+    width=1280,
+    height=720,
+    quality=90,
+    inputs={
+        "intensity": 0.8,
+        "color": [1.0, 0.0, 0.0, 1.0]
+    }
+)
+config.shaders.append(shader_config)
+```
+
+## Low-Level API - VVISF Bindings
+
+The project also provides direct access to the VVISF library through Python bindings.
+
+### Importing the Bindings
+
+```python
+import isf_shader_renderer.vvisf_bindings as vvisf
+
+# Check platform and availability
+print(f"Platform: {vvisf.get_platform_info()}")
+print(f"VVISF Available: {vvisf.is_vvisf_available()}")
 ```
 
 ## Core Classes
