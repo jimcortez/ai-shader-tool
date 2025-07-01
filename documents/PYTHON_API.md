@@ -18,6 +18,7 @@ This document provides comprehensive documentation for the VVISF Python bindings
 10. [Performance Considerations](#performance-considerations)
 11. [Platform Support](#platform-support)
 12. [Platform Abstraction and Fallbacks](#platform-abstraction-and-fallbacks)
+13. [Performance Features](#performance-features)
 
 ## Installation and Setup
 
@@ -64,7 +65,7 @@ pip install -e ".[dev]"
 ```python
 # High-level API
 from isf_shader_renderer.renderer import ShaderRenderer
-from isf_shader_renderer.config import Config, Defaults, ShaderConfig
+from isf_shader_renderer.config import ShaderRendererConfig, Defaults, ShaderConfig
 
 # Low-level API
 import isf_shader_renderer.vvisf_bindings as vvisf
@@ -85,11 +86,11 @@ The `ShaderRenderer` class provides a simple, high-level interface for rendering
 
 ```python
 from isf_shader_renderer.renderer import ShaderRenderer
-from isf_shader_renderer.config import Config, Defaults
+from isf_shader_renderer.config import ShaderRendererConfig, Defaults
 from pathlib import Path
 
 # Create configuration
-config = Config()
+config = ShaderRendererConfig()
 config.defaults = Defaults(width=1920, height=1080, quality=95)
 
 # Create renderer
@@ -294,10 +295,10 @@ create_default_config(Path("config_default.yaml"))
 ### Configuration Classes
 
 ```python
-from isf_shader_renderer.config import Config, Defaults, ShaderConfig
+from isf_shader_renderer.config import ShaderRendererConfig, Defaults, ShaderConfig
 
 # Create configuration programmatically
-config = Config()
+config = ShaderRendererConfig()
 
 # Set defaults
 config.defaults = Defaults(
@@ -1265,6 +1266,37 @@ def robust_shader_rendering(shader_path, parameters=None, size=(1920, 1080)):
     except Exception as e:
         print(f"Unexpected error: {e}")
         return None
+```
+
+## Performance Features
+
+### Render Caching
+- The renderer automatically caches rendered frames in memory based on shader, inputs, time, and size.
+- If you render the same frame again, the cached image is used, improving performance for batch and repeated jobs.
+
+### Custom Uniform Support
+- All ISF input types are supported: bool, int, float, point2D, color, image.
+- Input values from config or CLI are automatically coerced to the correct type (e.g., "true" to bool, "0.5,0.5" to point2D, file path to image).
+- Invalid or mismatched values will raise a clear error.
+
+#### Example: Using Image and Custom Uniform Inputs
+
+```python
+shader_config = ShaderConfig(
+    input="shaders/complex.fs",
+    output="output/frame.png",
+    times=[0.0],
+    width=512,
+    height=512,
+    inputs={
+        "inputImage": "input/photo.png",  # image input
+        "myBool": "true",
+        "myInt": 42,
+        "myFloat": 3.14,
+        "myPoint": "0.25,0.75",
+        "myColor": [0.9, 0.8, 0.7, 1.0]
+    }
+)
 ```
 
 This documentation provides a comprehensive guide to using the VVISF Python bindings. For more advanced usage and examples, refer to the test files in the `tests/` directory. 

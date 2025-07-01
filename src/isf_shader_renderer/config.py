@@ -1,4 +1,4 @@
-"""Configuration management for ISF Shader Renderer."""
+"""Configuration management for ISF Shader Renderer (ShaderRendererConfig)."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,8 +44,8 @@ class ShaderConfig:
 
 
 @dataclass
-class Config:
-    """Main configuration class."""
+class ShaderRendererConfig:
+    """Main configuration class for the ISF Shader Renderer."""
     
     defaults: Defaults = field(default_factory=Defaults)
     shaders: List[ShaderConfig] = field(default_factory=list)
@@ -91,7 +91,7 @@ CONFIG_SCHEMA = {
 }
 
 
-def load_config(config_path: Path) -> Config:
+def load_config(config_path: Path) -> ShaderRendererConfig:
     """Load configuration from YAML file."""
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -106,7 +106,7 @@ def load_config(config_path: Path) -> Config:
         raise ValueError(f"Invalid configuration format: {e}")
     
     # Parse configuration
-    config = Config()
+    config = ShaderRendererConfig()
     
     # Parse defaults
     if "defaults" in data:
@@ -135,7 +135,7 @@ def load_config(config_path: Path) -> Config:
     return config
 
 
-def save_config(config: Config, config_path: Path) -> None:
+def save_config(config: ShaderRendererConfig, config_path: Path) -> None:
     """Save configuration to YAML file."""
     data = {
         "defaults": {
@@ -164,7 +164,7 @@ def save_config(config: Config, config_path: Path) -> None:
 
 def create_default_config(config_path: Path) -> None:
     """Create a default configuration file."""
-    config = Config()
+    config = ShaderRendererConfig()
     
     # Add example shader
     example_shader = ShaderConfig(

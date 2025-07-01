@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from isf_shader_renderer.config import (
-    Config,
+    ShaderRendererConfig,
     Defaults,
     ShaderConfig,
     create_default_config,
@@ -83,25 +83,25 @@ class TestShaderConfig:
         assert config.get_quality(defaults) == 95
 
 
-class TestConfig:
-    """Test Config dataclass."""
+class TestShaderRendererConfig:
+    """Test ShaderRendererConfig dataclass."""
     
     def test_config_creation(self):
-        """Test creating Config with defaults."""
-        config = Config()
+        """Test creating ShaderRendererConfig with defaults."""
+        config = ShaderRendererConfig()
         assert config.defaults.width == 1920
         assert config.defaults.height == 1080
         assert config.defaults.quality == 95
         assert config.shaders == []
     
     def test_config_with_shaders(self):
-        """Test creating Config with shaders."""
+        """Test creating ShaderRendererConfig with shaders."""
         shader_config = ShaderConfig(
             input="test.fs",
             output="output.png",
-            times=[0.0, 1.0],
+            times=[0.0, 1.0, 2.0],
         )
-        config = Config(shaders=[shader_config])
+        config = ShaderRendererConfig(shaders=[shader_config])
         assert len(config.shaders) == 1
         assert config.shaders[0].input == "test.fs"
 
@@ -111,7 +111,7 @@ class TestConfigFileOperations:
     
     def test_save_and_load_config(self):
         """Test saving and loading configuration."""
-        config = Config()
+        config = ShaderRendererConfig()
         shader_config = ShaderConfig(
             input="test.fs",
             output="output.png",

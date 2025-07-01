@@ -29,7 +29,7 @@ See [../IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) for the full, up-to-d
 
 - `src/isf_shader_renderer/renderer.py`: High-level Python API and CLI logic.
 - `src/isf_shader_renderer/platform.py`: Platform abstraction, context management, and fallback logic.
-- `src/isf_shader_renderer/config.py`: Configuration system and YAML parsing.
+- `src/isf_shader_renderer/config.py`: ShaderRendererConfig system and YAML parsing.
 - `src/isf_shader_renderer/vvisf_bindings.cpp`: Pybind11 C++ bindings for VVISF-GL.
 - `documents/`: All developer and advanced user documentation.
 
@@ -55,3 +55,5 @@ See [../IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) for the full, up-to-d
 ---
 
 For further details, see the linked documents and code comments. 
+
+ShaderRendererConfig: Main configuration class for the renderer. 

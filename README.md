@@ -38,5 +38,13 @@ For full CLI usage and configuration examples, see [documents/PYTHON_API.md](doc
 - [Implementation Plan](IMPLEMENTATION_PLAN.md)
 - [AI Coding Documentation](documents/ai-coding-documentation.md)
 
+**Performance:** automatic render caching and efficient input handling. See [Python API documentation](documents/PYTHON_API.md#performance-features) for details.
+
 ## License
 MIT 
+
+Example (Python):
+```python
+from isf_shader_renderer.config import ShaderRendererConfig, Defaults
+config = ShaderRendererConfig()
+``` 

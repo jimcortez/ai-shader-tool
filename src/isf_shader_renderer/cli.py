@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from .config import Config, load_config
+from .config import ShaderRendererConfig, load_config
 from .renderer import ShaderRenderer
 
 app = typer.Typer(
@@ -60,7 +60,7 @@ def main(
             raise typer.Exit(1)
     else:
         # Create default configuration
-        cfg = Config()
+        cfg = ShaderRendererConfig()
         if verbose:
             console.print("Using default configuration")
     
@@ -111,7 +111,7 @@ def main(
         render_single_shader(renderer, shader_content, time, output, verbose)
 
 
-def render_from_config(renderer: ShaderRenderer, cfg: Config, verbose: bool) -> None:
+def render_from_config(renderer: ShaderRenderer, cfg: ShaderRendererConfig, verbose: bool) -> None:
     """Render shaders from configuration file."""
     total_shaders = len(cfg.shaders)
     total_frames = sum(len(shader.times) for shader in cfg.shaders)

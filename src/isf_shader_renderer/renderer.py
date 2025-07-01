@@ -4,10 +4,12 @@ import time
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 import logging
+import hashlib
+import json
 
 from PIL import Image
 
-from .config import Config, ShaderConfig
+from .config import ShaderRendererConfig, ShaderConfig
 from .platform import get_platform_info, get_context_manager, get_fallback_manager
 
 logger = logging.getLogger(__name__)
@@ -16,11 +18,12 @@ logger = logging.getLogger(__name__)
 class ShaderRenderer:
     """Main renderer class for ISF shaders using VVISF."""
     
-    def __init__(self, config: Config):
+    def __init__(self, config: ShaderRendererConfig):
         """Initialize the renderer with configuration."""
         self.config = config
         self._scene = None
         self._current_shader: Optional[str] = None
+        self._render_cache = {}  # (hash) -> PIL Image
         
         # Initialize platform components
         self.platform_info = get_platform_info()
@@ -38,6 +41,18 @@ class ShaderRenderer:
         if self.fallback_manager.should_use_fallback():
             logger.warning(f"Using fallback renderer: {self.fallback_manager.get_fallback_reason()}")
     
+    def _make_render_cache_key(self, shader_content, inputs, time_code, width, height):
+        # Serialize all relevant parameters to a hashable string
+        key_data = {
+            'shader': shader_content,
+            'inputs': inputs,
+            'time': time_code,
+            'width': width,
+            'height': height
+        }
+        key_json = json.dumps(key_data, sort_keys=True, default=str)
+        return hashlib.sha256(key_json.encode('utf-8')).hexdigest()
+
     def render_frame(
         self,
         shader_content: str,
@@ -68,6 +83,19 @@ class ShaderRenderer:
             # Get dimensions
             width, height = self._get_dimensions(shader_config)
             
+            # Prepare cache key
+            inputs = shader_config.inputs if shader_config and shader_config.inputs else {}
+            cache_key = self._make_render_cache_key(shader_content, inputs, time_code, width, height)
+            
+            # Check cache
+            if cache_key in self._render_cache:
+                image = self._render_cache[cache_key]
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                quality = self._get_quality(shader_config)
+                image.save(output_path, "PNG", optimize=True, quality=quality)
+                logger.debug(f"Used cached render for {output_path}")
+                return
+            
             # Ensure shader is loaded
             self._ensure_shader_loaded(shader_content)
             
@@ -87,6 +115,9 @@ class ShaderRenderer:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 quality = self._get_quality(shader_config)
                 image.save(output_path, "PNG", optimize=True, quality=quality)
+                
+                # Store in cache
+                self._render_cache[cache_key] = image
                 
                 logger.debug(f"Rendered frame to {output_path}")
             else:
@@ -142,14 +173,83 @@ class ShaderRenderer:
             logger.error(f"Failed to set shader inputs: {e}")
     
     def _set_input_value(self, input_name: str, input_value: Any) -> None:
-        """Set a single input value based on its type."""
+        """Set a single input value based on its type, including image inputs and validation."""
         if self.fallback_manager.should_use_fallback() or not self._scene:
             return
         
         try:
             import isf_shader_renderer.vvisf_bindings as vvisf
             
-            # Determine input type and create appropriate ISFVal
+            # Get input type from ISFDoc
+            doc = self._scene.doc() if hasattr(self._scene, 'doc') else None
+            input_type = None
+            if doc:
+                # Find the ISFAttr with the matching name
+                for attr in doc.inputs():
+                    if callable(getattr(attr, 'name', None)) and attr.name() == input_name:
+                        input_type = str(attr.type())
+                        break
+                else:
+                    available = [attr.name() for attr in doc.inputs() if callable(getattr(attr, 'name', None))]
+                    logger.warning(f"Input '{input_name}' not found in ISFDoc inputs. Available: {available}")
+            
+            # Validate and coerce value to expected type
+            def coerce(val, typ):
+                if typ == 'ISFValType_Bool':
+                    if isinstance(val, bool):
+                        return vvisf.ISFBoolVal(val)
+                    if isinstance(val, str):
+                        if val.lower() in ('true', '1', 'yes', 'on'):
+                            return vvisf.ISFBoolVal(True)
+                        if val.lower() in ('false', '0', 'no', 'off'):
+                            return vvisf.ISFBoolVal(False)
+                    raise ValueError(f"Cannot coerce {val!r} to bool for input '{input_name}'")
+                elif typ == 'ISFValType_Long':
+                    try:
+                        return vvisf.ISFLongVal(int(val))
+                    except Exception:
+                        raise ValueError(f"Cannot coerce {val!r} to int for input '{input_name}'")
+                elif typ == 'ISFValType_Float':
+                    try:
+                        return vvisf.ISFFloatVal(float(val))
+                    except Exception:
+                        raise ValueError(f"Cannot coerce {val!r} to float for input '{input_name}'")
+                elif typ == 'ISFValType_Point2D':
+                    if isinstance(val, (list, tuple)) and len(val) == 2:
+                        return vvisf.ISFPoint2DVal(float(val[0]), float(val[1]))
+                    if isinstance(val, str):
+                        parts = [float(x) for x in val.replace(',', ' ').split()]
+                        if len(parts) == 2:
+                            return vvisf.ISFPoint2DVal(parts[0], parts[1])
+                    raise ValueError(f"Cannot coerce {val!r} to Point2D for input '{input_name}'")
+                elif typ == 'ISFValType_Color':
+                    if isinstance(val, (list, tuple)) and len(val) == 4:
+                        return vvisf.ISFColorVal(float(val[0]), float(val[1]), float(val[2]), float(val[3]))
+                    if isinstance(val, str):
+                        parts = [float(x) for x in val.replace(',', ' ').split()]
+                        if len(parts) == 4:
+                            return vvisf.ISFColorVal(parts[0], parts[1], parts[2], parts[3])
+                    raise ValueError(f"Cannot coerce {val!r} to Color (4 floats) for input '{input_name}'")
+                elif typ == 'ISFValType_Image':
+                    if isinstance(val, str):
+                        from PIL import Image
+                        img = Image.open(val).convert('RGBA')
+                        glbuf = vvisf.GLBuffer.from_pil_image(img)
+                        self._scene.set_buffer_for_input_named(glbuf, input_name)
+                        return None  # Buffer set directly
+                    raise ValueError(f"Cannot coerce {val!r} to image file path for input '{input_name}'")
+                else:
+                    logger.warning(f"Unknown or unsupported ISF input type '{typ}' for '{input_name}'")
+                    return None
+            
+            if input_type:
+                norm_type = input_type.replace('.', '_')
+                result = coerce(input_value, norm_type)
+                if result is not None:
+                    self._scene.set_value_for_input_named(result, input_name)
+                return
+            
+            # Fallback: try to infer type as before
             if isinstance(input_value, bool):
                 val = vvisf.ISFBoolVal(input_value)
             elif isinstance(input_value, int):
@@ -157,10 +257,8 @@ class ShaderRenderer:
             elif isinstance(input_value, float):
                 val = vvisf.ISFFloatVal(input_value)
             elif isinstance(input_value, (list, tuple)) and len(input_value) == 2:
-                # 2D Point
                 val = vvisf.ISFPoint2DVal(float(input_value[0]), float(input_value[1]))
             elif isinstance(input_value, (list, tuple)) and len(input_value) == 4:
-                # Color (RGBA)
                 val = vvisf.ISFColorVal(
                     float(input_value[0]), float(input_value[1]),
                     float(input_value[2]), float(input_value[3])
@@ -168,9 +266,7 @@ class ShaderRenderer:
             else:
                 logger.warning(f"Unknown input type for {input_name}: {type(input_value)}")
                 return
-            
             self._scene.set_value_for_input_named(val, input_name)
-            
         except Exception as e:
             logger.warning(f"Failed to set input {input_name}: {e}")
     
@@ -336,7 +432,7 @@ class ShaderRenderer:
             for attr in doc.inputs():
                 input_info = {
                     "name": attr.name,
-                    "type": str(attr.type),
+                    "type": str(attr.type()),
                     "description": attr.description,
                 }
                 info["inputs"].append(input_info)

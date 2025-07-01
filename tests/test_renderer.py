@@ -5,8 +5,10 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+import numpy as np
+import os
 
-from isf_shader_renderer.config import Config, ShaderConfig
+from isf_shader_renderer.config import ShaderRendererConfig, ShaderConfig, Defaults
 from isf_shader_renderer.renderer import ShaderRenderer
 
 
@@ -15,13 +17,13 @@ class TestShaderRenderer:
     
     def test_renderer_creation(self):
         """Test creating ShaderRenderer."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         assert renderer.config == config
     
     def test_render_frame_basic(self):
         """Test basic frame rendering."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         
         shader_content = """/*{
@@ -50,7 +52,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
     
     def test_render_frame_with_shader_config(self):
         """Test frame rendering with shader-specific configuration."""
-        config = Config()
+        config = ShaderRendererConfig()
         shader_config = ShaderConfig(
             input="test.fs",
             output="output.png",
@@ -88,7 +90,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
     
     def test_validate_shader(self):
         """Test shader validation."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         
         # Valid ISF shader
@@ -109,7 +111,7 @@ void main() {
     
     def test_get_shader_info(self):
         """Test shader info extraction."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         
         shader_content = """/*{
@@ -130,7 +132,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
     
     def test_create_placeholder_image(self):
         """Test placeholder image creation."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         
         shader_content = """/*{
@@ -148,7 +150,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
     
     def test_render_frame_creates_directory(self):
         """Test that render_frame creates output directory if needed."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         
         shader_content = """/*{
@@ -171,7 +173,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
     
     def test_render_complex_eye_shader(self):
         """Test rendering a complex, known-good ISF shader (spherical eye)."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         
         shader_content = """/*{
@@ -224,4 +226,160 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
             assert image.size == (1920, 1080)  # Default size
             assert image.mode == 'RGBA'
         finally:
-            output_path.unlink() 
+            output_path.unlink()
+
+    def test_image_input(self, tmp_path):
+        """Test rendering with an image input."""
+        from isf_shader_renderer.renderer import ShaderRenderer
+        from isf_shader_renderer.config import ShaderRendererConfig, ShaderConfig, Defaults
+        from PIL import Image
+        import numpy as np
+        import os
+
+        # Create a simple ISF shader that outputs the input image
+        shader_content = """/*{
+            "DESCRIPTION": "Image passthrough",
+            "CREDIT": "Test",
+            "CATEGORIES": ["Test"],
+            "INPUTS": [
+                {"NAME": "inputImage", "TYPE": "image"}
+            ]
+        }*/
+        void main() {
+            gl_FragColor = IMG_PIXEL(inputImage, gl_FragCoord.xy);
+        }"""
+
+        # Create a test input image (red square)
+        input_img = Image.new('RGBA', (32, 32), (255, 0, 0, 255))
+        input_img_path = tmp_path / "input.png"
+        input_img.save(input_img_path)
+
+        # Set up config and renderer
+        config = ShaderRendererConfig()
+        config.defaults = Defaults(width=32, height=32, quality=95)
+        shader_config = ShaderConfig(
+            input="test.fs",
+            output=str(tmp_path / "output.png"),
+            times=[0.0],
+            width=32,
+            height=32,
+            inputs={"inputImage": str(input_img_path)}
+        )
+        renderer = ShaderRenderer(config)
+
+        # Render the frame
+        output_path = tmp_path / "output.png"
+        renderer.render_frame(shader_content, 0.0, output_path, shader_config)
+
+        # Load the output image
+        output_img = Image.open(output_path).convert('RGBA')
+
+        # Compare input and output images (should be identical)
+        np_input = np.array(input_img)
+        np_output = np.array(output_img)
+        # Allow a small tolerance for GL/rounding
+        assert np.allclose(np_input, np_output, atol=8), "Output image does not match input image for passthrough shader"
+
+    def test_custom_uniform_types(self, tmp_path):
+        """Test setting all ISF input types with type coercion and validation."""
+        from isf_shader_renderer.renderer import ShaderRenderer
+        from isf_shader_renderer.config import ShaderRendererConfig, ShaderConfig, Defaults
+        from PIL import Image
+        import numpy as np
+
+        # Shader outputs the color input as the fragment color
+        shader_content = """/*{
+            "DESCRIPTION": "Uniform type test",
+            "CREDIT": "Test",
+            "CATEGORIES": ["Test"],
+            "INPUTS": [
+                {"NAME": "myBool", "TYPE": "bool", "DEFAULT": false},
+                {"NAME": "myInt", "TYPE": "long", "DEFAULT": 42},
+                {"NAME": "myFloat", "TYPE": "float", "DEFAULT": 1.0},
+                {"NAME": "myPoint", "TYPE": "point2D", "DEFAULT": [0.5, 0.5]},
+                {"NAME": "myColor", "TYPE": "color", "DEFAULT": [0.1, 0.2, 0.3, 1.0]}
+            ]
+        }*/
+        void main() {
+            gl_FragColor = myColor;
+        }"""
+
+        # Set up config and renderer
+        config = ShaderRendererConfig()
+        config.defaults = Defaults(width=8, height=8, quality=95)
+        shader_config = ShaderConfig(
+            input="test.fs",
+            output=str(tmp_path / "output.png"),
+            times=[0.0],
+            width=8,
+            height=8,
+            inputs={
+                "myBool": "true",  # string that should coerce to bool
+                "myInt": "123",    # string that should coerce to int
+                "myFloat": "3.14", # string that should coerce to float
+                "myPoint": "0.25,0.75", # string that should coerce to point2d
+                "myColor": "0.9 0.8 0.7 1.0" # string that should coerce to color
+            }
+        )
+        renderer = ShaderRenderer(config)
+
+        # Render the frame
+        output_path = tmp_path / "output.png"
+        renderer.render_frame(shader_content, 0.0, output_path, shader_config)
+
+        # Load the output image
+        output_img = Image.open(output_path).convert('RGBA')
+        np_output = np.array(output_img)
+        # The output color should match the color input (0.9, 0.8, 0.7, 1.0)
+        expected = np.array([int(0.9*255), int(0.8*255), int(0.7*255), 255])
+        # Check that all pixels are close to expected
+        assert np.allclose(np_output, expected, atol=8), f"Output color does not match input color: got {np_output[0,0]}, expected {expected}" 
+
+    def test_render_caching(self, tmp_path, caplog):
+        """Test that render caching avoids redundant rendering."""
+        from isf_shader_renderer.renderer import ShaderRenderer
+        from isf_shader_renderer.config import ShaderRendererConfig, ShaderConfig, Defaults
+        from PIL import Image
+        import numpy as np
+        import os
+
+        shader_content = """/*{
+            "DESCRIPTION": "Cache test",
+            "CREDIT": "Test",
+            "CATEGORIES": ["Test"],
+            "INPUTS": []
+        }*/
+        void main() { gl_FragColor = vec4(0.2, 0.4, 0.6, 1.0); }"""
+
+        config = ShaderRendererConfig()
+        config.defaults = Defaults(width=16, height=16, quality=95)
+        shader_config = ShaderConfig(
+            input="test.fs",
+            output=str(tmp_path / "output.png"),
+            times=[0.0],
+            width=16,
+            height=16,
+            inputs={}
+        )
+        renderer = ShaderRenderer(config)
+
+        output_path = tmp_path / "output.png"
+
+        # First render (should not use cache)
+        with caplog.at_level('DEBUG'):
+            renderer.render_frame(shader_content, 0.0, output_path, shader_config)
+            first_log = any('Rendered frame to' in r for r in caplog.text.splitlines())
+            assert first_log, "First render should not use cache"
+
+        # Second render (should use cache)
+        caplog.clear()
+        with caplog.at_level('DEBUG'):
+            renderer.render_frame(shader_content, 0.0, output_path, shader_config)
+            cache_log = any('Used cached render' in r for r in caplog.text.splitlines())
+            assert cache_log, "Second render should use cache"
+
+        # Output file should exist and be a valid image
+        img = Image.open(output_path)
+        arr = np.array(img)
+        expected = np.array([int(0.2*255), int(0.4*255), int(0.6*255), 255])
+        assert np.allclose(arr, expected, atol=8), f"Output image does not match expected color: got {arr[0,0]}, expected {expected}" 

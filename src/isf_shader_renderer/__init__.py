@@ -5,7 +5,7 @@ __author__ = "Your Name"
 __email__ = "your.email@example.com"
 
 from .cli import main
-from .config import Config, load_config
+from .config import ShaderRendererConfig, load_config
 from .renderer import ShaderRenderer
 
-__all__ = ["main", "Config", "load_config", "ShaderRenderer"] 
+__all__ = ["main", "ShaderRendererConfig", "load_config", "ShaderRenderer"] 
