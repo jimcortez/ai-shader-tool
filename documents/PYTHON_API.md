@@ -103,8 +103,8 @@ shader_content = """/*{
     "CATEGORIES": ["Test"],
     "INPUTS": []
 }*/
-void main() { 
-    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); 
+void main() {
+    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
 }"""
 
 # Render frame at time 0.0
@@ -134,9 +134,9 @@ shader_config = ShaderConfig(
 
 # Render with custom configuration
 renderer.render_frame(
-    shader_content, 
-    1.5, 
-    Path("output/eye_with_inputs.png"), 
+    shader_content,
+    1.5,
+    Path("output/eye_with_inputs.png"),
     shader_config
 )
 ```
@@ -189,9 +189,9 @@ complex_shader = """/*{
     "ISFVSN": "2"
 }*/
 // ... shader code ...
-void main() { 
+void main() {
     // Complex eye rendering logic
-    gl_FragColor = vec4(col, 1.0); 
+    gl_FragColor = vec4(col, 1.0);
 }"""
 
 # Render with custom parameters
@@ -227,6 +227,9 @@ try:
 except Exception as e:
     print(f"Rendering failed: {e}")
     # The renderer will create a fallback image
+    # NEW: Access the error log for details
+    doc = vvisf.CreateISFDocRefWith(invalid_shader)
+    print(f"Shader error log: {doc.error_log}")
 ```
 
 ## Configuration System
@@ -251,7 +254,7 @@ shaders:
     inputs:
       color: [1.0, 0.0, 0.0, 1.0]
       speed: 2.0
-  
+
   - input: "shaders/eye.fs"
     output: "output/eye_%04d.png"
     times: [0.0, 1.0, 2.0, 3.0]
@@ -279,7 +282,7 @@ for shader_config in config.shaders:
     # Load shader content from file
     with open(shader_config.input, 'r') as f:
         shader_content = f.read()
-    
+
     # Render all time frames
     for time_code in shader_config.times:
         output_path = Path(shader_config.output.replace("%04d", f"{int(time_code*100):04d}"))
@@ -380,6 +383,13 @@ print(f"Credit: {doc.credit()}")
 print(f"Version: {doc.vsn()}")
 print(f"Type: {doc.type()}")  # ISFFileType enum
 print(f"Categories: {doc.categories()}")
+
+# NEW: Shader compilation error log
+# If shader compilation fails, you can access the error log:
+if not doc.is_valid():
+    print(f"Shader error log: {doc.error_log}")
+# Or after attempting to load/compile a shader:
+print(f"Last error log: {doc.error_log}")
 
 # File type constants
 print(vvisf.ISFFileType.Source)      # 1
@@ -730,21 +740,21 @@ def analyze_isf_file(file_path):
     """Analyze an ISF file and print its properties."""
     try:
         doc = vvisf.CreateISFDocRef(file_path)
-        
+
         print(f"File: {file_path}")
         print(f"Name: {doc.name()}")
         print(f"Description: {doc.description()}")
         print(f"Type: {doc.type()}")
         print(f"Categories: {doc.categories()}")
-        
+
         print("\nInputs:")
         for input_attr in doc.inputs():
             print(f"  - {input_attr.name()}: {input_attr.type()}")
             if input_attr.description():
                 print(f"    Description: {input_attr.description()}")
-        
+
         print(f"\nRender passes: {doc.render_passes()}")
-        
+
     except vvisf.VVISFError as e:
         print(f"Error analyzing {file_path}: {e}")
 
@@ -773,17 +783,17 @@ start_time = time.time()
 for frame in range(60):
     # Calculate current time
     current_time = time.time() - start_time
-    
+
     # Update time-based inputs
     scene.set_value_for_input_named(vvisf.ISFFloatVal(current_time), "time")
-    
+
     # Render frame
     size = vvisf.VVGL.Size(1920, 1080)
     buffer = scene.create_and_render_a_buffer(size)
-    
+
     # Process buffer (save to file, display, etc.)
     print(f"Rendered frame {frame}")
-    
+
     time.sleep(1/30)  # 30 FPS
 ```
 
@@ -796,24 +806,24 @@ def create_interactive_shader(shader_path):
     """Create an interactive shader with real-time parameter control."""
     scene = vvisf.CreateISFSceneRef()
     scene.use_file(shader_path)
-    
+
     # Get all float inputs for interactive control
     float_inputs = scene.inputs_of_type(vvisf.ISFValType.Float)
-    
+
     print("Available float inputs:")
     for i, input_attr in enumerate(float_inputs):
         print(f"{i}: {input_attr.name()} (default: {input_attr.default_val().get_float_val()})")
-    
+
     return scene, float_inputs
 
 def render_with_parameters(scene, parameters):
     """Render a frame with the given parameters."""
     size = vvisf.VVGL.Size(1920, 1080)
-    
+
     # Set all parameters
     for input_attr, value in parameters.items():
         scene.set_value_for_input_named(vvisf.ISFFloatVal(value), input_attr.name())
-    
+
     # Render
     return scene.create_and_render_a_buffer(size)
 
@@ -839,23 +849,23 @@ def batch_render_shaders(shader_dir, output_dir, size=(1920, 1080)):
     """Render all ISF files in a directory."""
     # Find all ISF files
     isf_files = vvisf.scan_for_isf_files(shader_dir)
-    
+
     for shader_file in isf_files:
         try:
             # Create scene
             scene = vvisf.CreateISFSceneRef()
             scene.use_file(shader_file)
-            
+
             # Render frame
             render_size = vvisf.VVGL.Size(size[0], size[1])
             buffer = scene.create_and_render_a_buffer(render_size)
-            
+
             # Save buffer (implementation depends on your needs)
             output_file = os.path.join(output_dir, f"{os.path.basename(shader_file)}.png")
             # save_buffer_to_file(buffer, output_file)
-            
+
             print(f"Rendered: {shader_file}")
-            
+
         except vvisf.VVISFError as e:
             print(f"Error rendering {shader_file}: {e}")
 
@@ -888,15 +898,15 @@ def safe_render_shader(shader_path, parameters=None, size=(1920, 1080)):
         # Validate inputs
         if not os.path.exists(shader_path):
             raise FileNotFoundError(f"Shader file not found: {shader_path}")
-        
+
         # Check if file is ISF
         if not vvisf.file_is_probably_isf(shader_path):
             raise ValueError(f"File does not appear to be an ISF: {shader_path}")
-        
+
         # Create scene
         scene = vvisf.CreateISFSceneRef()
         scene.use_file(shader_path)
-        
+
         # Set parameters
         if parameters:
             for name, value in parameters.items():
@@ -904,13 +914,13 @@ def safe_render_shader(shader_path, parameters=None, size=(1920, 1080)):
                     scene.set_value_for_input_named(value, name)
                 except Exception as e:
                     print(f"Warning: Failed to set parameter {name}: {e}")
-        
+
         # Render
         render_size = vvisf.VVGL.Size(size[0], size[1])
         buffer = scene.create_and_render_a_buffer(render_size)
-        
+
         return buffer
-        
+
     except vvisf.VVISFError as e:
         print(f"VVISF error: {e}")
         return None
@@ -930,16 +940,16 @@ def safe_render_shader(shader_path, parameters=None, size=(1920, 1080)):
 def render_multiple_frames(scene, num_frames):
     """Render multiple frames efficiently."""
     buffers = []
-    
+
     for i in range(num_frames):
         # Render frame
         buffer = scene.create_and_render_a_buffer(vvisf.VVGL.Size(1920, 1080))
         buffers.append(buffer)
-        
+
         # Process buffer immediately to free memory
         process_buffer(buffer)
         buffers.pop()  # Remove from list to allow garbage collection
-    
+
     return buffers
 ```
 
@@ -1131,15 +1141,15 @@ def check_platform_compatibility():
     """Check if the current platform supports VVISF."""
     try:
         import vvisf_bindings as vvisf
-        
+
         if not vvisf.is_vvisf_available():
             print("VVISF is not available on this platform")
             return False
-        
+
         print(f"Platform: {vvisf.get_platform_info()}")
         print("VVISF is available and working")
         return True
-        
+
     except ImportError as e:
         print(f"Failed to import VVISF bindings: {e}")
         return False
@@ -1181,11 +1191,11 @@ If the system cannot use VVISF (e.g., missing OpenGL or GLFW), the renderer will
 ```python
 class ISFRenderer:
     """High-level wrapper for ISF rendering."""
-    
+
     def __init__(self):
         self.scene = vvisf.CreateISFSceneRef()
         self.current_shader = None
-    
+
     def load_shader(self, shader_path):
         """Load a shader file."""
         try:
@@ -1195,19 +1205,19 @@ class ISFRenderer:
         except vvisf.VVISFError as e:
             print(f"Error loading shader: {e}")
             return False
-    
+
     def render_frame(self, size=(1920, 1080), time=None):
         """Render a single frame."""
         if not self.current_shader:
             raise RuntimeError("No shader loaded")
-        
+
         render_size = vvisf.VVGL.Size(size[0], size[1])
-        
+
         if time is not None:
             return self.scene.create_and_render_a_buffer(render_size, time)
         else:
             return self.scene.create_and_render_a_buffer(render_size)
-    
+
     def set_parameter(self, name, value):
         """Set a shader parameter."""
         if isinstance(value, float):
@@ -1239,13 +1249,13 @@ def robust_shader_rendering(shader_path, parameters=None, size=(1920, 1080)):
         # Validate inputs
         if not os.path.exists(shader_path):
             raise FileNotFoundError(f"Shader file not found: {shader_path}")
-        
+
         # Create scene
         scene = vvisf.CreateISFSceneRef()
-        
+
         # Load shader
         scene.use_file(shader_path)
-        
+
         # Set parameters
         if parameters:
             for name, value in parameters.items():
@@ -1253,13 +1263,13 @@ def robust_shader_rendering(shader_path, parameters=None, size=(1920, 1080)):
                     scene.set_value_for_input_named(value, name)
                 except Exception as e:
                     print(f"Warning: Failed to set parameter {name}: {e}")
-        
+
         # Render
         render_size = vvisf.VVGL.Size(size[0], size[1])
         buffer = scene.create_and_render_a_buffer(render_size)
-        
+
         return buffer
-        
+
     except vvisf.VVISFError as e:
         print(f"VVISF error: {e}")
         return None
@@ -1317,4 +1327,4 @@ The ShaderRenderer uses a GLBufferPool to efficiently reuse OpenGL buffers for r
 - Direct use of GLBufferPool outside the renderer may not always produce valid buffers (e.g., `name == 0`).
 - Always use the renderer's API for rendering and image extraction.
 
-This documentation provides a comprehensive guide to using the VVISF Python bindings. For more advanced usage and examples, refer to the test files in the `tests/` directory. 
+This documentation provides a comprehensive guide to using the VVISF Python bindings. For more advanced usage and examples, refer to the test files in the `tests/` directory.

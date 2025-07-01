@@ -30,6 +30,9 @@ python -m isf_shader_renderer.cli --input path/to/shader.fs --output output.png
 - `--height` / `-h`: Output image height
 - `--inputs`: Set shader input values (JSON or key=value)
 
+**New Feature:**
+If a shader fails to compile, you can now access detailed error logs from Python via the ISFDoc object. See [Python API documentation](documents/PYTHON_API.md#error-handling-and-fallbacks) for usage examples.
+
 For full CLI usage and configuration examples, see [documents/PYTHON_API.md](documents/PYTHON_API.md#cli-usage) and [examples/config.yaml](examples/config.yaml).
 
 ## Documentation
@@ -39,4 +42,4 @@ For full CLI usage and configuration examples, see [documents/PYTHON_API.md](doc
 - [AI Coding Documentation](documents/ai-coding-documentation.md)
 
 ## License
-MIT 
+MIT
