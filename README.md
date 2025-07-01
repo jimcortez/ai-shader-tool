@@ -1,237 +1,176 @@
-# ISF Shader Renderer
+# AI Shader Tool
 
-A Python command-line tool for rendering ISF (Interactive Shader Format) shaders to PNG images at specified time codes.
+A Python project for rendering ISF (Interactive Shader Format) shaders using the VVISF-GL library, which provides C++ bindings for ISF shader rendering built on VVGL for OpenGL operations.
 
 ## Features
 
-- Render ISF shaders to PNG images
-- Support for multiple time codes in a single run
-- YAML configuration file support
-- Command-line overrides for configuration
-- Input from files or stdin
-- Configurable output resolution and quality
-- Rich command-line interface with progress indicators
+- Cross-platform ISF shader rendering using VVISF-GL
+- GLFW-based OpenGL context creation for headless/offscreen rendering
+- Python bindings (planned)
+- Support for macOS, Linux, and Windows
 
-## Installation
+## Prerequisites
 
-### From Source
+- **Git** (for submodule management)
+- **CMake** (3.15 or later)
+- **Make** or **Ninja**
+- **C++ compiler** with C++11 support
+- **GLFW3** and **GLEW** libraries
 
-1. Clone the repository:
+### Installing Dependencies
+
+#### macOS
 ```bash
-git clone https://github.com/yourusername/isf-shader-renderer.git
-cd isf-shader-renderer
+brew install cmake glfw glew
 ```
 
-2. Install in development mode:
+#### Ubuntu/Debian
 ```bash
-pip install -e .
+sudo apt-get install cmake libglfw3-dev libglew-dev
 ```
 
-3. Install development dependencies (optional):
-```bash
-pip install -e ".[dev]"
-```
+#### Windows
+- Install CMake from https://cmake.org/download/
+- Install GLFW and GLEW via vcpkg or build from source
 
-### From PyPI (when published)
+## Quick Start
 
-```bash
-pip install isf-shader-renderer
-```
+### Fresh Clone Setup
 
-## Usage
+1. **Clone the repository with submodules:**
+   ```bash
+   git clone --recursive https://github.com/your-username/ai-shader-tool.git
+   cd ai-shader-tool
+   ```
 
-### Basic Usage
+2. **Run the setup script:**
+   ```bash
+   ./scripts/setup.sh
+   ```
 
-Render a shader at a specific time:
+   This script will:
+   - Initialize all git submodules
+   - Check prerequisites
+   - Build VVISF-GL libraries with GLFW support
+   - Build the main project
 
-```bash
-isf-renderer --shader path/to/shader.fs --time 1.5 --output output.png
-```
+3. **Run tests:**
+   ```bash
+   cd build && ./vvisf_test
+   ```
 
-### Using Configuration File
+### Manual Setup
 
-Create a configuration file `config.yaml`:
+If you prefer manual setup or the setup script fails:
 
-```yaml
-# Default settings
-defaults:
-  width: 1920
-  height: 1080
-  quality: 95
+1. **Initialize submodules:**
+   ```bash
+   git submodule update --init --recursive
+   ```
 
-# Shader-specific settings
-shaders:
-  - input: "shaders/wave.fs"
-    output: "output/wave_%04d.png"
-    times: [0.0, 0.5, 1.0, 1.5, 2.0]
-    width: 1280
-    height: 720
-```
+2. **Build VVISF-GL libraries:**
+   ```bash
+   ./scripts/build_vvisf.sh
+   ```
 
-Run with configuration:
-
-```bash
-isf-renderer --config config.yaml
-```
-
-### Command Line Options
-
-```bash
-isf-renderer [OPTIONS] COMMAND [ARGS]...
-
-Options:
-  --config PATH           Path to YAML configuration file
-  --shader PATH           Path to ISF shader file (or use stdin)
-  --time FLOAT            Time code for rendering (can be specified multiple times)
-  --output PATH           Output file path
-  --width INTEGER         Output width [default: 1920]
-  --height INTEGER        Output height [default: 1080]
-  --quality INTEGER       PNG quality (1-100) [default: 95]
-  --help                  Show this message and exit
-```
-
-### Examples
-
-Render multiple frames:
-```bash
-isf-renderer --shader animation.fs --time 0.0 --time 0.5 --time 1.0 --output frame_%04d.png
-```
-
-Read shader from stdin:
-```bash
-cat shader.fs | isf-renderer --time 1.0 --output output.png
-```
-
-Override configuration settings:
-```bash
-isf-renderer --config config.yaml --width 2560 --height 1440
-```
-
-## Configuration File Format
-
-The YAML configuration file supports the following structure:
-
-```yaml
-# Global defaults
-defaults:
-  width: 1920
-  height: 1080
-  quality: 95
-  output_format: "png"
-
-# Shader definitions
-shaders:
-  - input: "path/to/shader1.fs"
-    output: "output/shader1_%04d.png"
-    times: [0.0, 0.5, 1.0]
-    width: 1280  # Override default
-    height: 720  # Override default
-  
-  - input: "path/to/shader2.fs"
-    output: "output/shader2_%04d.png"
-    times: [0.0, 1.0, 2.0, 3.0]
-    # Use defaults for width/height
-```
-
-### Configuration Options
-
-- `defaults`: Global settings applied to all shaders unless overridden
-- `shaders`: List of shader configurations
-  - `input`: Path to ISF shader file
-  - `output`: Output file pattern (supports printf-style formatting)
-  - `times`: List of time codes to render
-  - `width`: Output width (optional, uses default if not specified)
-  - `height`: Output height (optional, uses default if not specified)
-  - `quality`: PNG quality (optional, uses default if not specified)
-
-## Development
-
-### Setup Development Environment
-
-1. Install development dependencies:
-```bash
-pip install -e ".[dev]"
-```
-
-2. Install pre-commit hooks:
-```bash
-pre-commit install
-```
-
-### Running Tests
-
-```bash
-pytest
-```
-
-### Code Formatting
-
-```bash
-black src/ tests/
-isort src/ tests/
-```
-
-### Type Checking
-
-```bash
-mypy src/
-```
-
-### Linting
-
-```bash
-flake8 src/ tests/
-```
+3. **Build the main project:**
+   ```bash
+   mkdir -p build && cd build
+   cmake ..
+   make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+   ```
 
 ## Project Structure
 
 ```
-isf-shader-renderer/
+ai-shader-tool/
+├── external/
+│   └── VVISF-GL/          # Git submodule - VVISF-GL library
+│       ├── VVGL/          # VVGL graphics library
+│       └── VVISF/         # VVISF ISF rendering library
+├── scripts/
+│   ├── setup.sh           # Complete setup script
+│   └── build_vvisf.sh     # VVISF-GL build script
 ├── src/
-│   └── isf_shader_renderer/
-│       ├── __init__.py
-│       ├── cli.py              # Command-line interface
-│       ├── config.py           # Configuration management
-│       ├── renderer.py         # Shader rendering logic
-│       └── utils.py            # Utility functions
-├── tests/
-│   ├── __init__.py
-│   ├── test_cli.py
-│   ├── test_config.py
-│   └── test_renderer.py
-├── examples/
-│   ├── config.yaml
-│   └── shaders/
-├── pyproject.toml
-├── README.md
-├── LICENSE
-└── .gitignore
+│   ├── vvisf_test.cpp     # C++ test executable
+│   └── vvisf_bindings.cpp # Python bindings (planned)
+├── build/                 # Build output directory
+└── CMakeLists.txt         # Main CMake configuration
 ```
 
-## Contributing
+## Development
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+### Updating VVISF-GL
+
+To update to a newer version of VVISF-GL:
+
+```bash
+cd external/VVISF-GL
+git pull origin main
+cd ../..
+./scripts/build_vvisf.sh
+```
+
+### Adding New Dependencies
+
+When adding new external dependencies:
+
+1. Add them as git submodules in `external/`
+2. Update `.gitignore` to exclude build artifacts but allow submodule content
+3. Create build scripts in `scripts/`
+4. Update `CMakeLists.txt` to find and link the new dependencies
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"VVISF-GL submodule not found"**
+   - Run: `git submodule update --init --recursive`
+
+2. **"GLFW3 not found"**
+   - Install GLFW: `brew install glfw` (macOS) or `sudo apt-get install libglfw3-dev` (Ubuntu)
+
+3. **"GLEW not found"**
+   - Install GLEW: `brew install glew` (macOS) or `sudo apt-get install libglew-dev` (Ubuntu)
+
+4. **Build errors on macOS**
+   - Ensure you have Xcode Command Line Tools: `xcode-select --install`
+
+5. **Architecture mismatch errors**
+   - The build script automatically detects architecture (ARM64/x86_64)
+   - For manual builds, set `ARCH=arm64` or `ARCH=x86_64` as needed
+
+### Platform-Specific Notes
+
+- **macOS**: Uses GLFW for cross-platform OpenGL context creation
+- **Linux**: Uses GLFW with X11 backend
+- **Windows**: Uses GLFW with Win32 backend
+
+## Current Status
+
+### ✅ Completed (Step 1)
+- **GLFW Integration**: Successfully integrated GLFW for cross-platform OpenGL context creation
+- **VVISF-GL Build System**: Created automated build scripts for VVISF-GL with GLFW support
+- **Git Submodules**: Set up proper dependency management using git submodules
+- **Cross-Platform Support**: Working on macOS with ARM64 architecture
+- **OpenGL Context Creation**: Successfully creating hidden GLFW windows for offscreen rendering
+- **VVISF Scene Creation**: Basic VVISF scene instantiation working
+
+### 🔄 In Progress
+- **Python Bindings**: Planned using pybind11
+- **ISF Shader Loading**: Integration with actual ISF shader files
+- **Rendering Pipeline**: Complete rendering workflow
+
+### 📋 Planned
+- **CLI Interface**: Command-line tool for shader rendering
+- **Configuration System**: YAML-based configuration
+- **Batch Processing**: Multiple shader rendering
+- **Output Formats**: PNG, JPEG, and other image formats
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+[Add your license information here]
 
-## Acknowledgments
+## Contributing
 
-- ISF (Interactive Shader Format) specification
-- Python community for excellent tooling and libraries
-
-## Roadmap
-
-- [ ] ISF shader parsing and validation
-- [ ] OpenGL/WebGL rendering backend
-- [ ] Support for shader uniforms and parameters
-- [ ] Batch processing capabilities
-- [ ] Video output support
-- [ ] GUI interface
-- [ ] Plugin system for custom renderers 
+[Add contribution guidelines here] 

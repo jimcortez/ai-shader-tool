@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.16)
+project(vvisf-test)
+
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Platform detection
+if(APPLE)
+    set(PLATFORM "macOS")
+    set(VVGL_SDK "VVGL_SDK_MAC")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${VVGL_SDK} -DGL_SILENCE_DEPRECATION")
+elseif(UNIX AND NOT APPLE)
+    set(PLATFORM "Linux")
+    set(VVGL_SDK "VVGL_SDK_GLFW")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${VVGL_SDK}")
+elseif(WIN32)
+    set(PLATFORM "Windows")
+    set(VVGL_SDK "VVGL_SDK_GLFW")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D${VVGL_SDK}")
+else()
+    set(PLATFORM "Unknown")
+    message(WARNING "Unknown platform detected.")
+endif()
+
+message(STATUS "Platform: ${PLATFORM}")
+message(STATUS "VVGL SDK: ${VVGL_SDK}")
+
+# Include directories
+include_directories(
+    external/VVISF-GL/VVGL/include
+    external/VVISF-GL/VVISF/include
+)
+
+# Simple test executable
+add_executable(vvisf_test build_test.cpp)
+target_compile_definitions(vvisf_test PRIVATE ${VVGL_SDK}) 
