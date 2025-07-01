@@ -78,118 +78,66 @@ Create Python bindings for core VVISF classes (ISFDoc, ISFScene, ISFAttr).
 
 ---
 
-## Phase 3: GLBuffer and Image Handling
+## Phase 3: GLBuffer and Image Handling (Updated for GLFW)
 
 ### Objective
-Implement GLBuffer to PIL Image conversion and vice versa.
+Implement GLBuffer to PIL Image conversion and vice versa, leveraging GLFW-based OpenGL context management.
+
+### Context
+- The project now uses GLFW for OpenGL context creation on all platforms.
+- OpenGL contexts are created and managed in a cross-platform, headless-capable way.
+- All buffer/image operations should use the GLFW context, and context management is unified.
 
 ### Tasks
-1. **GLBuffer Bindings**
-   - Bind VVGL::GLBuffer class
-   - Bind buffer creation and management methods
-   - Bind pixel data access methods
+1. **GLBuffer & GLBufferPool Bindings**
+   - Bind `VVGL::GLBuffer` and `VVGL::GLBufferPool` to Python.
+   - Expose buffer creation, deletion, and pixel data access.
+   - Expose context management utilities (e.g., make context current).
 
 2. **Image Conversion**
-   - Implement GLBuffer to PIL Image conversion
-   - Implement PIL Image to GLBuffer conversion
-   - Handle different pixel formats and color spaces
-   - Implement proper memory management
+   - Implement `GLBuffer` to PIL Image conversion using `glReadPixels` in the current context.
+   - Implement PIL Image to `GLBuffer` using `glTexImage2D` or similar.
+   - Handle RGBA, RGB, and grayscale formats.
+   - Document that all image operations require the OpenGL context to be current (and provide helpers for this).
 
 3. **Buffer Pool Management**
-   - Bind VVGL::GLBufferPool for efficient buffer management
-   - Implement buffer pooling strategies
-   - Handle OpenGL context management
+   - Expose `GLBufferPool` for efficient buffer reuse.
+   - Document best practices for buffer pooling and context management.
+
+4. **Testing**
+   - Add tests for buffer creation, pixel access, and image conversion.
+   - Add tests for context management (e.g., error if context is not current).
 
 ### Exit Criteria
-- [ ] GLBuffer can be created with specified dimensions
-- [ ] GLBuffer pixel data can be accessed
-- [ ] Conversion between GLBuffer and PIL Image works
-- [ ] Buffer pooling reduces memory allocation overhead
-- [ ] OpenGL context is properly managed
-
-### Tests Required
-- [ ] Test GLBuffer creation and destruction
-- [ ] Test pixel data access and modification
-- [ ] Test GLBuffer to PIL Image conversion
-- [ ] Test PIL Image to GLBuffer conversion
-- [ ] Test buffer pooling efficiency
-- [ ] Test memory leak prevention
+- [ ] GLBuffer and GLBufferPool are fully accessible from Python.
+- [ ] GLBuffer pixel data can be read/written and converted to/from PIL Image.
+- [ ] All image operations work cross-platform via GLFW context.
+- [ ] Buffer pooling is efficient and documented.
+- [ ] Context management is robust and documented.
 
 ---
 
-## Phase 4: ISF Shader Rendering Implementation
+## Phase 4: ISF Shader Rendering Implementation (No Major Change)
 
-### Objective
-Replace placeholder rendering with actual VVISF-based rendering.
-
-### Tasks
-1. **ShaderRenderer Integration**
-   - Integrate VVISF classes into ShaderRenderer
-   - Replace placeholder image creation with VVISF rendering
-   - Implement proper error handling and fallbacks
-
-2. **Time and Uniform Management**
-   - Implement TIME uniform setting
-   - Handle RENDERSIZE uniform
-   - Manage other ISF standard uniforms
-   - Implement custom uniform support
-
-3. **Multi-pass Rendering**
-   - Support ISF multi-pass rendering
-   - Handle persistent and temporary buffers
-   - Implement pass dependency management
-
-### Exit Criteria
-- [ ] ShaderRenderer uses VVISF for actual rendering
-- [ ] TIME uniform is properly set for animations
-- [ ] RENDERSIZE uniform reflects output dimensions
-- [ ] Multi-pass shaders render correctly
-- [ ] Error handling provides meaningful feedback
-
-### Tests Required
-- [ ] Test basic shader rendering
-- [ ] Test animated shaders (TIME uniform)
-- [ ] Test different output resolutions
-- [ ] Test multi-pass shaders
-- [ ] Test error handling for invalid shaders
-- [ ] Test performance compared to placeholder
+- All OpenGL operations are now cross-platform and headless by default via GLFW.
+- No platform-specific context code is needed for rendering.
 
 ---
 
-## Phase 5: Platform Abstraction and Fallbacks
+## Phase 5: Platform Abstraction and Fallbacks (Simplified)
 
-### Objective
-Implement platform-specific renderers and fallback mechanisms.
+- Platform abstraction is now simpler: only check if GLFW/OpenGL is available.
+- Fallbacks only needed if OpenGL/GLFW is not available.
+- No platform-specific context creation code is needed.
 
-### Tasks
-1. **Platform Detection**
-   - Implement comprehensive platform detection
-   - Identify supported platforms for VVISF
-   - Create platform-specific renderer selection
+---
 
-2. **Fallback Renderers**
-   - Implement software renderer fallback
-   - Create mock renderer for unsupported platforms
-   - Implement graceful degradation
+## Implementation Guide Update
 
-3. **Platform-Specific Optimizations**
-   - Optimize for macOS (Metal/OpenGL)
-   - Optimize for Linux (OpenGL)
-   - Handle Windows-specific considerations
-
-### Exit Criteria
-- [ ] Platform detection works correctly
-- [ ] Fallback renderers work on unsupported platforms
-- [ ] Platform-specific optimizations are applied
-- [ ] Graceful degradation provides useful output
-- [ ] Cross-platform compatibility is maintained
-
-### Tests Required
-- [ ] Test platform detection on different OS
-- [ ] Test fallback renderer functionality
-- [ ] Test platform-specific optimizations
-- [ ] Test cross-platform compatibility
-- [ ] Test graceful degradation scenarios
+- All OpenGL context management should use GLFW utilities.
+- All buffer/image operations should check that the context is current (and provide helpers).
+- No platform-specific code is needed for context creation or management.
+- Document in the Python API that all image/buffer operations require the context to be current, and provide a context manager or helper for this.
 
 ---
 
