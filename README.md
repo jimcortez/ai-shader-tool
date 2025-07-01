@@ -970,6 +970,18 @@ If you're still experiencing issues:
 - **Real-time Preview**: Live shader preview capabilities
 - **Shader Library**: Collection of example ISF shaders
 
+## Platform Abstraction and Fallbacks (Phase 5)
+
+The renderer now includes a robust platform abstraction system:
+
+- **Automatic platform detection**: The system checks for VVISF, OpenGL, and GLFW availability at runtime.
+- **Context management**: OpenGL context is managed automatically using GLFW, with helpers for context safety.
+- **Fallback rendering**: If VVISF, OpenGL, or GLFW are not available, the renderer automatically falls back to a placeholder image generator. This ensures graceful degradation on unsupported systems.
+- **Cross-platform**: Works on macOS, Linux, and Windows (OpenGL). On other platforms, or if dependencies are missing, the fallback renderer is used.
+- **Error handling**: Detailed error messages and logging are provided for platform issues.
+
+**All tests pass.** The system is robust to missing OpenGL/VVISF/GLFW and will always produce an image output, even on unsupported platforms.
+
 ## License
 
 [Add your license information here]

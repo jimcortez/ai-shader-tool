@@ -8,14 +8,7 @@ import logging
 from PIL import Image
 
 from .config import Config, ShaderConfig
-
-# Import VVISF bindings
-try:
-    import isf_shader_renderer.vvisf_bindings as vvisf
-    VVISF_AVAILABLE = True
-except ImportError:
-    VVISF_AVAILABLE = False
-    vvisf = None
+from .platform import get_platform_info, get_context_manager, get_fallback_manager
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +22,21 @@ class ShaderRenderer:
         self._scene = None
         self._current_shader: Optional[str] = None
         
-        if not VVISF_AVAILABLE:
-            logger.warning("VVISF bindings not available, using placeholder renderer")
+        # Initialize platform components
+        self.platform_info = get_platform_info()
+        self.context_manager = get_context_manager()
+        self.fallback_manager = get_fallback_manager()
+        
+        # Check platform compatibility
+        compatible, error_msg = self.platform_info.is_supported(), self.platform_info.get_error_message()
+        if not compatible:
+            logger.warning(f"Platform compatibility issue: {error_msg}")
+        
+        # Log platform summary
+        logger.info(f"Platform: {self.platform_info.get_summary()}")
+        
+        if self.fallback_manager.should_use_fallback():
+            logger.warning(f"Using fallback renderer: {self.fallback_manager.get_fallback_reason()}")
     
     def render_frame(
         self,
@@ -48,11 +54,17 @@ class ShaderRenderer:
             output_path: Path where the output image should be saved
             shader_config: Optional shader-specific configuration
         """
-        if not VVISF_AVAILABLE:
+        if self.fallback_manager.should_use_fallback():
             self._render_placeholder_frame(shader_content, time_code, output_path, shader_config)
             return
         
         try:
+            # Ensure OpenGL context is ready
+            if not self.context_manager.ensure_context():
+                logger.warning("Failed to ensure OpenGL context, using fallback")
+                self._render_placeholder_frame(shader_content, time_code, output_path, shader_config)
+                return
+            
             # Get dimensions
             width, height = self._get_dimensions(shader_config)
             
@@ -63,7 +75,8 @@ class ShaderRenderer:
             self._set_shader_inputs(shader_config, time_code)
             
             # Render the frame
-            if vvisf and self._scene:
+            if self._scene:
+                import isf_shader_renderer.vvisf_bindings as vvisf
                 size = vvisf.Size(width, height)
                 buffer = self._scene.create_and_render_a_buffer(size)
                 
@@ -77,7 +90,7 @@ class ShaderRenderer:
                 
                 logger.debug(f"Rendered frame to {output_path}")
             else:
-                raise RuntimeError("VVISF not available or scene not initialized")
+                raise RuntimeError("Scene not initialized")
             
         except Exception as e:
             logger.error(f"Failed to render frame: {e}")
@@ -86,44 +99,56 @@ class ShaderRenderer:
     
     def _ensure_shader_loaded(self, shader_content: str) -> None:
         """Ensure the shader is loaded in the scene."""
-        if not vvisf:
+        if self.fallback_manager.should_use_fallback():
             return
             
         if self._current_shader != shader_content:
-            # Create new scene and load shader
-            self._scene = vvisf.CreateISFSceneRef()
-            
-            # Create ISFDoc from shader content
-            doc = vvisf.CreateISFDocRefWith(shader_content)
-            self._scene.use_doc(doc)
-            
-            self._current_shader = shader_content
-            logger.debug("Loaded new shader")
+            try:
+                import isf_shader_renderer.vvisf_bindings as vvisf
+                # Create new scene and load shader
+                self._scene = vvisf.CreateISFSceneRef()
+                
+                # Create ISFDoc from shader content
+                doc = vvisf.CreateISFDocRefWith(shader_content)
+                self._scene.use_doc(doc)
+                
+                self._current_shader = shader_content
+                logger.debug("Loaded new shader")
+            except Exception as e:
+                logger.error(f"Failed to load shader: {e}")
+                self._scene = None
     
     def _set_shader_inputs(self, shader_config: Optional[ShaderConfig], time_code: float) -> None:
         """Set shader input values."""
-        if not vvisf or not self._scene:
-            return
-        
-        # Set time-based inputs
-        self._scene.set_value_for_input_named(vvisf.ISFFloatVal(time_code), "TIME")
-        
-        # Set resolution inputs
-        width, height = self._get_dimensions(shader_config)
-        self._scene.set_value_for_input_named(vvisf.ISFFloatVal(float(width)), "RENDERSIZE.x")
-        self._scene.set_value_for_input_named(vvisf.ISFFloatVal(float(height)), "RENDERSIZE.y")
-        
-        # Set shader-specific inputs from config
-        if shader_config and shader_config.inputs:
-            for input_name, input_value in shader_config.inputs.items():
-                self._set_input_value(input_name, input_value)
-    
-    def _set_input_value(self, input_name: str, input_value: Any) -> None:
-        """Set a single input value based on its type."""
-        if not vvisf or not self._scene:
+        if self.fallback_manager.should_use_fallback() or not self._scene:
             return
         
         try:
+            import isf_shader_renderer.vvisf_bindings as vvisf
+            
+            # Set time-based inputs
+            self._scene.set_value_for_input_named(vvisf.ISFFloatVal(time_code), "TIME")
+            
+            # Set resolution inputs
+            width, height = self._get_dimensions(shader_config)
+            self._scene.set_value_for_input_named(vvisf.ISFFloatVal(float(width)), "RENDERSIZE.x")
+            self._scene.set_value_for_input_named(vvisf.ISFFloatVal(float(height)), "RENDERSIZE.y")
+            
+            # Set shader-specific inputs from config
+            if shader_config and shader_config.inputs:
+                for input_name, input_value in shader_config.inputs.items():
+                    self._set_input_value(input_name, input_value)
+        except Exception as e:
+            logger.error(f"Failed to set shader inputs: {e}")
+    
+    def _set_input_value(self, input_name: str, input_value: Any) -> None:
+        """Set a single input value based on its type."""
+        if self.fallback_manager.should_use_fallback() or not self._scene:
+            return
+        
+        try:
+            import isf_shader_renderer.vvisf_bindings as vvisf
+            
             # Determine input type and create appropriate ISFVal
             if isinstance(input_value, bool):
                 val = vvisf.ISFBoolVal(input_value)
@@ -195,13 +220,26 @@ class ShaderRenderer:
         # Determine dimensions
         width, height = self._get_dimensions(shader_config)
         
-        # Create a placeholder image
-        image = self._create_placeholder_image(shader_content, time_code, width, height)
-        
-        # Save the image
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        quality = self._get_quality(shader_config)
-        image.save(output_path, "PNG", optimize=True, quality=quality)
+        try:
+            # Use fallback manager to create image
+            image_data = self.fallback_manager.create_fallback_image(width, height, time_code)
+            
+            # Save the image data directly
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'wb') as f:
+                f.write(image_data)
+            
+            logger.info(f"Created fallback image: {self.fallback_manager.get_fallback_reason()}")
+            
+        except Exception as e:
+            logger.error(f"Fallback rendering failed: {e}")
+            # Create a minimal fallback image
+            image = self._create_placeholder_image(shader_content, time_code, width, height)
+            
+            # Save the image
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            quality = self._get_quality(shader_config)
+            image.save(output_path, "PNG", optimize=True, quality=quality)
     
     def _create_placeholder_image(
         self, shader_content: str, time_code: float, width: int, height: int
@@ -243,17 +281,15 @@ class ShaderRenderer:
         Returns:
             True if the shader is valid, False otherwise
         """
-        if not VVISF_AVAILABLE:
+        if self.fallback_manager.should_use_fallback():
             # Basic validation when VVISF is not available
             return bool(shader_content.strip())
         
         try:
+            import isf_shader_renderer.vvisf_bindings as vvisf
             # Try to create ISFDoc from shader content
-            if vvisf:
-                doc = vvisf.CreateISFDocRefWith(shader_content)
-                return True
-            else:
-                return False
+            doc = vvisf.CreateISFDocRefWith(shader_content)
+            return doc is not None
         except Exception as e:
             logger.warning(f"Shader validation failed: {e}")
             return False
@@ -268,51 +304,42 @@ class ShaderRenderer:
         Returns:
             Dictionary containing shader information
         """
-        if not VVISF_AVAILABLE:
+        if self.fallback_manager.should_use_fallback():
             # Basic info when VVISF is not available
             return {
                 "type": "ISF",
                 "size": len(shader_content),
-                "lines": len(shader_content.splitlines()),
-                "has_time_uniform": "TIME" in shader_content.upper(),
-                "has_resolution_uniform": "RENDERSIZE" in shader_content.upper(),
-                "vvisf_available": False,
+                "placeholder": True,
+                "fallback_reason": self.fallback_manager.get_fallback_reason(),
             }
         
         try:
+            import isf_shader_renderer.vvisf_bindings as vvisf
             # Create ISFDoc and extract detailed information
-            if not vvisf:
-                raise RuntimeError("VVISF not available")
             doc = vvisf.CreateISFDocRefWith(shader_content)
             
             info = {
                 "type": "ISF",
-                "name": doc.name(),
-                "description": doc.description(),
-                "credit": doc.credit(),
-                "version": doc.vsn(),
-                "file_type": str(doc.type()),
-                "categories": doc.categories(),
+                "name": doc.name,
+                "description": doc.description,
+                "credit": doc.credit,
+                "version": doc.vsn,
+                "file_type": str(doc.type),
+                "categories": doc.categories,
                 "size": len(shader_content),
                 "lines": len(shader_content.splitlines()),
                 "vvisf_available": True,
             }
             
             # Get input information
-            inputs = doc.inputs()
             info["inputs"] = []
-            for input_attr in inputs:
+            for attr in doc.inputs():
                 input_info = {
-                    "name": input_attr.name(),
-                    "type": str(input_attr.type()),
-                    "description": input_attr.description(),
-                    "label": input_attr.label(),
+                    "name": attr.name,
+                    "type": str(attr.type),
+                    "description": attr.description,
                 }
                 info["inputs"].append(input_info)
-            
-            # Get source code info
-            info["fragment_source"] = doc.frag_shader_source()
-            info["vertex_source"] = doc.vert_shader_source()
             
             return info
             
@@ -322,8 +349,6 @@ class ShaderRenderer:
                 "type": "ISF",
                 "size": len(shader_content),
                 "lines": len(shader_content.splitlines()),
-                "has_time_uniform": "TIME" in shader_content.upper(),
-                "has_resolution_uniform": "RENDERSIZE" in shader_content.upper(),
                 "vvisf_available": True,
                 "error": str(e),
             }
@@ -331,6 +356,12 @@ class ShaderRenderer:
     def cleanup(self) -> None:
         """Clean up resources."""
         if self._scene:
-            self._scene.prepare_to_be_deleted()
+            try:
+                self._scene.prepare_to_be_deleted()
+            except Exception as e:
+                logger.warning(f"Error during scene cleanup: {e}")
             self._scene = None
-        self._current_shader = None 
+        self._current_shader = None
+        
+        # Clean up platform resources
+        self.context_manager.cleanup_context() 

@@ -15,6 +15,7 @@ This document provides comprehensive documentation for the VVISF Python bindings
 9. [Error Handling](#error-handling)
 10. [Performance Considerations](#performance-considerations)
 11. [Platform Support](#platform-support)
+12. [Platform Abstraction and Fallbacks](#platform-abstraction-and-fallbacks)
 
 ## Installation and Setup
 
@@ -1149,6 +1150,26 @@ if check_platform_compatibility():
 else:
     print("Platform compatibility issues detected")
 ```
+
+## Platform Abstraction and Fallbacks
+
+The Python API provides robust platform abstraction:
+
+- **Platform checks**: Use `isf_shader_renderer.platform.get_platform_info()` to get a summary of platform capabilities (OpenGL, VVISF, GLFW, headless support, etc).
+- **Context management**: Use `get_context_manager()` to ensure the OpenGL context is current before buffer/image operations.
+- **Fallbacks**: If VVISF, OpenGL, or GLFW are not available, the system automatically uses a fallback image generator. This ensures your code will always produce an image, even on unsupported systems.
+
+### Example: Querying Platform Info
+
+```python
+from isf_shader_renderer.platform import get_platform_info
+info = get_platform_info()
+print(info.get_summary())
+```
+
+### Fallback Behavior
+
+If the system cannot use VVISF (e.g., missing OpenGL or GLFW), the renderer will generate a placeholder image (animated gradient) instead of raising an error. This makes the API robust for headless, CI, or unsupported environments.
 
 ## Best Practices
 
