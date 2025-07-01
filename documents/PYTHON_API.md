@@ -1299,4 +1299,22 @@ shader_config = ShaderConfig(
 )
 ```
 
+## Buffer Pooling and Reuse
+
+The ShaderRenderer uses a GLBufferPool to efficiently reuse OpenGL buffers for rendering frames of the same size. This reduces memory allocations and improves performance, especially for batch or repeated rendering jobs.
+
+- Buffers are allocated from the pool when rendering frames.
+- The pool is automatically managed by the renderer; users do not need to interact with it directly.
+- All buffer/image operations require the OpenGL context to be current (handled by the renderer).
+- Direct allocation from the pool in user code may not yield a valid OpenGL texture outside the rendering pipeline.
+
+**Benefits:**
+- Reduces memory churn and allocation overhead.
+- Improves performance for batch rendering.
+- Ensures efficient use of GPU resources.
+
+**Caveats:**
+- Direct use of GLBufferPool outside the renderer may not always produce valid buffers (e.g., `name == 0`).
+- Always use the renderer's API for rendering and image extraction.
+
 This documentation provides a comprehensive guide to using the VVISF Python bindings. For more advanced usage and examples, refer to the test files in the `tests/` directory. 

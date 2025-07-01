@@ -9,6 +9,7 @@ This document is for AI agents and developers working on the internals of the AI
 4. [Python API Notes](#python-api-notes)
 5. [Platform Abstraction](#platform-abstraction)
 6. [Testing](#testing)
+7. [Buffer Pooling and Performance](#buffer-pooling-and-performance)
 
 ---
 
@@ -27,7 +28,7 @@ See [../IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) for the full, up-to-d
 
 ## 3. Code Structure
 
-- `src/isf_shader_renderer/renderer.py`: High-level Python API and CLI logic.
+- `src/isf_shader_renderer/renderer.py`: High-level Python API, CLI logic, and buffer pool integration for efficient buffer reuse.
 - `src/isf_shader_renderer/platform.py`: Platform abstraction, context management, and fallback logic.
 - `src/isf_shader_renderer/config.py`: ShaderRendererConfig system and YAML parsing.
 - `src/isf_shader_renderer/vvisf_bindings.cpp`: Pybind11 C++ bindings for VVISF-GL.
@@ -51,6 +52,10 @@ See [../IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) for the full, up-to-d
 - Run all tests with `make test`.
 - Coverage reports are generated in `htmlcov/`.
 - Add new tests in `tests/` for new features or bugfixes.
+
+## 7. Buffer Pooling and Performance
+
+The renderer uses a GLBufferPool to efficiently reuse OpenGL buffers for frames of the same size. This is managed internally and improves performance for batch and repeated rendering. Direct allocation from the pool in user code may not always yield valid GL textures; always use the renderer's API for rendering.
 
 ---
 

@@ -30,6 +30,16 @@ class ShaderRenderer:
         self.context_manager = get_context_manager()
         self.fallback_manager = get_fallback_manager()
         
+        # Initialize GLBufferPool for buffer reuse
+        self._buffer_pool = None
+        if self.platform_info.vvisf_available:
+            try:
+                import isf_shader_renderer.vvisf_bindings as vvisf
+                self._buffer_pool = vvisf.GLBufferPool()
+                logger.info("GLBufferPool initialized for buffer reuse.")
+            except Exception as e:
+                logger.warning(f"Failed to initialize GLBufferPool: {e}")
+        
         # Check platform compatibility
         compatible, error_msg = self.platform_info.is_supported(), self.platform_info.get_error_message()
         if not compatible:
@@ -106,19 +116,32 @@ class ShaderRenderer:
             if self._scene:
                 import isf_shader_renderer.vvisf_bindings as vvisf
                 size = vvisf.Size(width, height)
-                buffer = self._scene.create_and_render_a_buffer(size)
-                
+
+                # Use buffer pool for allocation if available
+                buffer = None
+                if self._buffer_pool is not None:
+                    buffer = self._buffer_pool.create_buffer(size)
+                    # Render into the pooled buffer (if supported by VVISF)
+                    # If not supported, fall back to scene's create_and_render_a_buffer
+                    try:
+                        buffer = self._scene.create_and_render_a_buffer(size, buffer)
+                    except TypeError:
+                        # If the method does not accept a buffer, fall back
+                        buffer = self._scene.create_and_render_a_buffer(size)
+                else:
+                    buffer = self._scene.create_and_render_a_buffer(size)
+
                 # Convert buffer to PIL Image and save
                 image = self._buffer_to_pil_image(buffer)
-                
+
                 # Save the image
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 quality = self._get_quality(shader_config)
                 image.save(output_path, "PNG", optimize=True, quality=quality)
-                
+
                 # Store in cache
                 self._render_cache[cache_key] = image
-                
+
                 logger.debug(f"Rendered frame to {output_path}")
             else:
                 raise RuntimeError("Scene not initialized")

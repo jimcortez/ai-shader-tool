@@ -248,7 +248,6 @@ Implement advanced ISF features and performance optimizations.
 2. **Performance Optimization**
    - Implement render caching
    - Optimize buffer reuse
-   - Implement parallel rendering
    - Profile and optimize bottlenecks
 
 3. **Memory Management**
