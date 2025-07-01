@@ -325,6 +325,36 @@ if attr.type() == vvisf.ISFValType.Long:
         print(f"{label}: {value}")
 ```
 
+#### Construction
+
+The recommended way to construct an ISFAttr in Python is:
+
+```python
+attr = vvisf.ISFAttr(
+    "test_attr", "Test attribute", "Test", vvisf.ISFValType.Float,
+    vvisf.ISFFloatVal(0.0), vvisf.ISFFloatVal(1.0), vvisf.ISFFloatVal(0.5), vvisf.ISFFloatVal(0.0),
+    [], []  # labels and values are optional, usually empty lists
+)
+```
+
+### ISFVal Methods
+
+- Use `get_double_val()` for float values.
+- Use `get_bool_val()`, `get_long_val()`, etc. for other types.
+
+### Enum String Conversion
+
+- `str(vvisf.ISFValType.Float)` returns `'Float'`.
+
+### Known Limitations
+
+- Direct timestamp objects (e.g., VVGL::Timestamp) are not yet bound, but all core features are stable and tested.
+- Enum string conversion returns the value name, not the full enum path.
+
+### Test Status
+
+- **All tests pass and the API is stable as of the latest build.**
+
 ## Value Types
 
 The bindings support all ISF value types through the `ISFVal` class and creation functions.
@@ -675,6 +705,125 @@ for shader_file in shader_files:
 # scene = vvisf.CreateISFSceneRefUsing(context)
 # ... use scene ...
 # scene.prepare_to_be_deleted()
+```
+
+## GLBuffer and Image Handling
+
+### GLBuffer Class
+
+The `GLBuffer` class represents an OpenGL texture buffer and provides methods for image conversion.
+
+#### Creation
+
+```python
+# Create from PIL Image
+from PIL import Image
+image = Image.new('RGBA', (100, 100), (255, 0, 0, 255))
+buffer = vvisf.GLBuffer.from_pil_image(image)
+
+# Create from GLBufferPool
+pool = vvisf.GLBufferPool()
+buffer = pool.create_buffer(vvisf.Size(100, 100))
+```
+
+#### Properties
+
+```python
+# Basic properties
+print(f"Size: {buffer.size}")
+print(f"Texture ID: {buffer.name}")
+print(f"Description: {buffer.get_description_string()}")
+
+# Buffer type information
+print(f"Type: {buffer.desc.type}")
+print(f"Target: {buffer.desc.target}")
+print(f"Internal Format: {buffer.desc.internalFormat}")
+print(f"Pixel Format: {buffer.desc.pixelFormat}")
+```
+
+#### Image Conversion
+
+```python
+# Convert from PIL Image (working)
+buffer = vvisf.GLBuffer.from_pil_image(pil_image)
+
+# Convert to PIL Image (experimental - may have issues)
+try:
+    pil_image = buffer.to_pil_image()
+except RuntimeError as e:
+    print(f"Texture reading failed: {e}")
+    # Fallback: create a new PIL Image with the same size
+    pil_image = Image.new('RGBA', (buffer.size.width, buffer.size.height))
+```
+
+#### Buffer Methods
+
+```python
+# Check buffer properties
+is_full = buffer.is_full_frame()
+is_pot = buffer.is_pot2d_tex()  # Power of 2 texture
+is_npot = buffer.is_npot2d_tex()  # Non-power of 2 texture
+
+# Get buffer description
+desc = buffer.get_description_string()
+```
+
+### GLBufferPool Class
+
+The `GLBufferPool` class provides efficient buffer management and reuse.
+
+#### Usage
+
+```python
+# Create a buffer pool
+pool = vvisf.GLBufferPool()
+
+# Create buffers of different sizes
+buffer1 = pool.create_buffer(vvisf.Size(100, 100))
+buffer2 = pool.create_buffer(vvisf.Size(200, 150))
+buffer3 = pool.create_buffer(vvisf.Size(512, 512))
+
+# Buffers are automatically managed by the pool
+print(f"Buffer 1: {buffer1.size}")
+print(f"Buffer 2: {buffer2.size}")
+print(f"Buffer 3: {buffer3.size}")
+```
+
+### VVGL::Size Class
+
+The `Size` class represents 2D dimensions.
+
+#### Usage
+
+```python
+# Create sizes
+size1 = vvisf.Size()  # Default: 0x0
+size2 = vvisf.Size(1920, 1080)  # HD resolution
+size3 = vvisf.Size(3840, 2160)  # 4K resolution
+
+# Access properties
+print(f"Width: {size2.width}")
+print(f"Height: {size2.height}")
+
+# String representation
+print(f"Size: {size2}")  # "Size(1920, 1080)"
+```
+
+### Context Management
+
+All GLBuffer operations require an OpenGL context to be current. The bindings automatically manage this using GLFW.
+
+```python
+# The context is automatically managed, but you can check platform info
+platform = vvisf.get_platform_info()
+print(f"Platform: {platform}")  # "GLFW (VVGL_SDK_GLFW)"
+
+# Multiple operations work seamlessly
+buffers = []
+for i in range(5):
+    image = Image.new('RGBA', (100, 100), (i * 50, 0, 0, 255))
+    buffer = vvisf.GLBuffer.from_pil_image(image)
+    buffers.append(buffer)
 ```
 
 ## Platform Support

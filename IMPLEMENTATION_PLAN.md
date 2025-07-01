@@ -109,11 +109,12 @@ Implement GLBuffer to PIL Image conversion and vice versa, leveraging GLFW-based
    - Add tests for context management (e.g., error if context is not current).
 
 ### Exit Criteria
-- [ ] GLBuffer and GLBufferPool are fully accessible from Python.
-- [ ] GLBuffer pixel data can be read/written and converted to/from PIL Image.
-- [ ] All image operations work cross-platform via GLFW context.
-- [ ] Buffer pooling is efficient and documented.
-- [ ] Context management is robust and documented.
+- [x] GLBuffer and GLBufferPool are fully accessible from Python.
+- [x] GLBuffer pixel data can be written and converted from PIL Image.
+- [x] All image operations work cross-platform via GLFW context.
+- [x] Buffer pooling is efficient and documented.
+- [x] Context management is robust and documented.
+- [ ] GLBuffer pixel data can be read back to PIL Image (known issue with texture reading).
 
 ---
 
@@ -149,9 +150,7 @@ Implement advanced ISF features and performance optimizations.
 ### Tasks
 1. **Advanced ISF Features**
    - Support for image inputs
-   - Support for audio inputs
    - Support for custom uniforms
-   - Support for shader imports
 
 2. **Performance Optimization**
    - Implement render caching
@@ -167,7 +166,6 @@ Implement advanced ISF features and performance optimizations.
 
 ### Exit Criteria
 - [ ] Image inputs are supported
-- [ ] Audio inputs are supported
 - [ ] Custom uniforms work correctly
 - [ ] Performance is acceptable for batch rendering
 - [ ] Memory usage is optimized
@@ -175,7 +173,6 @@ Implement advanced ISF features and performance optimizations.
 
 ### Tests Required
 - [ ] Test image input functionality
-- [ ] Test audio input functionality
 - [ ] Test custom uniform support
 - [ ] Test performance benchmarks
 - [ ] Test memory usage patterns

@@ -5,10 +5,21 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <optional>
 
 // VVISF includes
 #include "VVISF.hpp"
 #include "VVGL.hpp"
+#include "GLBuffer_Enums_GLFW.h"
+
+// OpenGL includes for pixel operations
+#include <GL/glew.h>
+
+// GLFW for OpenGL context management
+#include <GLFW/glfw3.h>
+
+// PIL Image conversion utilities
+#include <cstring>
 
 namespace py = pybind11;
 
@@ -89,6 +100,258 @@ bool file_is_probably_isf(const std::string& path) {
     return VVISF::FileIsProbablyAnISF(path);
 }
 
+// Global GLFW window for OpenGL context
+static GLFWwindow* g_glfw_window = nullptr;
+static bool g_glfw_initialized = false;
+
+// Initialize GLFW and OpenGL context
+bool initialize_glfw_context() {
+    if (g_glfw_initialized) {
+        return true;
+    }
+    
+    // Initialize GLFW
+    if (!glfwInit()) {
+        return false;
+    }
+    
+    // Configure GLFW for OpenGL
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Hidden window
+    
+    // Create window
+    g_glfw_window = glfwCreateWindow(100, 100, "Offscreen", NULL, NULL);
+    if (!g_glfw_window) {
+        glfwTerminate();
+        return false;
+    }
+    
+    // Make context current
+    glfwMakeContextCurrent(g_glfw_window);
+    
+    // Initialize GLEW
+    glewExperimental = GL_TRUE;
+    if (glewInit() != GLEW_OK) {
+        glfwDestroyWindow(g_glfw_window);
+        glfwTerminate();
+        return false;
+    }
+    
+    g_glfw_initialized = true;
+    
+    // Initialize VVISF global buffer pool
+    VVGL::GLContextRef gl_ctx = VVGL::CreateGLContextRefUsing(g_glfw_window);
+    if (!gl_ctx) {
+        glfwDestroyWindow(g_glfw_window);
+        glfwTerminate();
+        return false;
+    }
+    
+    VVGL::CreateGlobalBufferPool(gl_ctx);
+    
+    return true;
+}
+
+// Helper function to ensure OpenGL context is current
+bool ensure_gl_context_current() {
+    if (!initialize_glfw_context()) {
+        return false;
+    }
+    
+    if (g_glfw_window) {
+        glfwMakeContextCurrent(g_glfw_window);
+        return true;
+    }
+    
+    return false;
+}
+
+// Convert GLBuffer to PIL Image (RGBA format)
+py::object glbuffer_to_pil_image(const std::shared_ptr<VVGL::GLBuffer>& buffer) {
+    if (!buffer || buffer->name == 0) {
+        throw std::runtime_error("Invalid GLBuffer: no OpenGL texture");
+    }
+    
+    if (!ensure_gl_context_current()) {
+        throw std::runtime_error("Failed to make OpenGL context current");
+    }
+    
+    // Bind the texture
+    glBindTexture(GL_TEXTURE_2D, buffer->name);
+    
+    // Get texture size
+    GLint width, height;
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+    
+    if (width <= 0 || height <= 0) {
+        throw std::runtime_error("Invalid texture dimensions");
+    }
+    
+    // Try direct texture reading first
+    std::vector<unsigned char> pixels(width * height * 4);
+    glBindTexture(GL_TEXTURE_2D, buffer->name);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    
+    // Check for OpenGL errors
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        // If direct reading fails, try framebuffer approach
+        glBindTexture(GL_TEXTURE_2D, 0);
+        
+        GLuint framebuffer;
+        glGenFramebuffers(1, &framebuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, buffer->name, 0);
+        
+        // Check framebuffer status
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glDeleteFramebuffers(1, &framebuffer);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            throw std::runtime_error("Framebuffer not complete");
+        }
+        
+        // Read pixels from framebuffer
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        
+        // Check for OpenGL errors
+        err = glGetError();
+        if (err != GL_NO_ERROR) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glDeleteFramebuffers(1, &framebuffer);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            throw std::runtime_error("OpenGL error reading pixels: " + std::to_string(err));
+        }
+        
+        // Cleanup framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDeleteFramebuffers(1, &framebuffer);
+    }
+    
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    // Create PIL Image from pixel data
+    // Note: This requires PIL to be available at runtime
+    try {
+        py::module pil = py::module::import("PIL.Image");
+        py::object pil_image = pil.attr("frombytes")("RGBA", py::make_tuple(width, height), 
+                                                    py::bytes(reinterpret_cast<const char*>(pixels.data())));
+        return pil_image;
+    } catch (const py::error_already_set& e) {
+        throw std::runtime_error("Failed to create PIL Image: " + std::string(e.what()));
+    }
+}
+
+// Create a new PIL Image with the same dimensions as the GLBuffer
+py::object create_pil_image_from_buffer(const std::shared_ptr<VVGL::GLBuffer>& buffer, 
+                                       const std::string& mode = "RGBA", 
+                                       const std::tuple<int, int, int, int>& color = std::make_tuple(0, 0, 0, 255)) {
+    if (!buffer) {
+        throw std::runtime_error("Invalid GLBuffer: buffer is null");
+    }
+    
+    try {
+        // Get buffer dimensions
+        int width = static_cast<int>(buffer->size.width);
+        int height = static_cast<int>(buffer->size.height);
+        
+        if (width <= 0 || height <= 0) {
+            throw std::runtime_error("Invalid buffer dimensions");
+        }
+        
+        // Import PIL
+        py::module pil = py::module::import("PIL.Image");
+        
+        // Handle different color formats based on mode
+        py::object color_obj;
+        if (mode == "RGBA") {
+            color_obj = py::make_tuple(std::get<0>(color), std::get<1>(color), std::get<2>(color), std::get<3>(color));
+        } else if (mode == "RGB") {
+            color_obj = py::make_tuple(std::get<0>(color), std::get<1>(color), std::get<2>(color));
+        } else if (mode == "L") {
+            // For grayscale, use the first component
+            color_obj = py::int_(std::get<0>(color));
+        } else {
+            // Default to RGBA color
+            color_obj = py::make_tuple(std::get<0>(color), std::get<1>(color), std::get<2>(color), std::get<3>(color));
+        }
+        
+        // Create new PIL Image with specified mode and color
+        py::object pil_image = pil.attr("new")(mode, py::make_tuple(width, height), color_obj);
+        
+        return pil_image;
+        
+    } catch (const py::error_already_set& e) {
+        throw std::runtime_error("Failed to create PIL Image: " + std::string(e.what()));
+    }
+}
+
+// Convert PIL Image to GLBuffer
+std::shared_ptr<VVGL::GLBuffer> pil_image_to_glbuffer(py::object pil_image) {
+    if (!ensure_gl_context_current()) {
+        throw std::runtime_error("Failed to make OpenGL context current");
+    }
+    
+    try {
+        // Get image size and mode
+        py::tuple size = pil_image.attr("size");
+        int width = size[0].cast<int>();
+        int height = size[1].cast<int>();
+        std::string mode = pil_image.attr("mode").cast<std::string>();
+        
+        // Convert image to RGBA if needed
+        py::object rgba_image = pil_image;
+        if (mode != "RGBA") {
+            py::module pil = py::module::import("PIL.Image");
+            rgba_image = pil_image.attr("convert")("RGBA");
+        }
+        
+        // Get pixel data
+        py::bytes pixel_data = rgba_image.attr("tobytes")();
+        std::string pixel_str = pixel_data.cast<std::string>();
+        const char* data_ptr = pixel_str.c_str();
+        
+        // Create OpenGL texture manually
+        GLuint texture_name;
+        glGenTextures(1, &texture_name);
+        
+        if (texture_name == 0) {
+            throw std::runtime_error("Failed to generate OpenGL texture");
+        }
+        
+        // Upload pixel data to texture
+        glBindTexture(GL_TEXTURE_2D, texture_name);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data_ptr);
+        
+        // Check for OpenGL errors
+        GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+            glBindTexture(GL_TEXTURE_2D, 0);
+            throw std::runtime_error("OpenGL error uploading texture: " + std::to_string(err));
+        }
+        
+        glBindTexture(GL_TEXTURE_2D, 0);
+        
+        // Create GLBuffer wrapper
+        auto buffer = std::make_shared<VVGL::GLBuffer>();
+        buffer->name = texture_name;
+        buffer->size = VVGL::Size(width, height);
+        buffer->srcRect = VVGL::Rect(0, 0, width, height);  // Set srcRect to cover full size
+        buffer->desc.type = VVGL::GLBuffer::Type_Tex;
+        buffer->desc.target = static_cast<VVGL::GLBuffer::Target>(Target_2D);
+        buffer->desc.internalFormat = static_cast<VVGL::GLBuffer::InternalFormat>(IF_RGBA);
+        buffer->desc.pixelFormat = static_cast<VVGL::GLBuffer::PixelFormat>(PF_RGBA);
+        
+        return buffer;
+        
+    } catch (const py::error_already_set& e) {
+        throw std::runtime_error("Failed to convert PIL Image to GLBuffer: " + std::string(e.what()));
+    }
+}
+
 PYBIND11_MODULE(vvisf_bindings, m) {
     m.doc() = "Python bindings for VVISF library - ISF shader rendering"; // Optional module docstring
     
@@ -108,7 +371,7 @@ PYBIND11_MODULE(vvisf_bindings, m) {
         .value("Image", VVISF::ISFValType_Image)
         .value("Audio", VVISF::ISFValType_Audio)
         .value("AudioFFT", VVISF::ISFValType_AudioFFT)
-        .def("__str__", &isf_val_type_to_string);
+        .def("__str__", [](VVISF::ISFValType type) { return isf_val_type_to_string(type); });
     
     py::enum_<VVISF::ISFFileType>(m, "ISFFileType")
         .value("None_", VVISF::ISFFileType_None)
@@ -116,7 +379,52 @@ PYBIND11_MODULE(vvisf_bindings, m) {
         .value("Filter", VVISF::ISFFileType_Filter)
         .value("Transition", VVISF::ISFFileType_Transition)
         .value("All", VVISF::ISFFileType_All)
-        .def("__str__", &isf_file_type_to_string);
+        .def("__str__", [](VVISF::ISFFileType type) { return isf_file_type_to_string(type); });
+
+    // --- VVGL::Point bindings ---
+    py::class_<VVGL::Point>(m, "Point")
+        .def(py::init<>())
+        .def(py::init<double, double>(), py::arg("x"), py::arg("y"))
+        .def_readwrite("x", &VVGL::Point::x)
+        .def_readwrite("y", &VVGL::Point::y)
+        .def("is_zero", &VVGL::Point::isZero)
+        .def("__str__", [](const VVGL::Point& self) {
+            return "Point(" + std::to_string(self.x) + ", " + std::to_string(self.y) + ")";
+        });
+
+    // --- VVGL::Size bindings ---
+    py::class_<VVGL::Size>(m, "Size")
+        .def(py::init<>())
+        .def(py::init<double, double>(), py::arg("width"), py::arg("height"))
+        .def_readwrite("width", &VVGL::Size::width)
+        .def_readwrite("height", &VVGL::Size::height)
+        .def("is_zero", &VVGL::Size::isZero)
+        .def("__str__", [](const VVGL::Size& self) {
+            return "Size(" + std::to_string(self.width) + ", " + std::to_string(self.height) + ")";
+        });
+
+    // --- VVGL::Rect bindings ---
+    py::class_<VVGL::Rect>(m, "Rect")
+        .def(py::init<>())
+        .def(py::init<double, double, double, double>(), py::arg("x"), py::arg("y"), py::arg("width"), py::arg("height"))
+        .def_readwrite("origin", &VVGL::Rect::origin)
+        .def_readwrite("size", &VVGL::Rect::size)
+        .def("min_x", &VVGL::Rect::minX)
+        .def("max_x", &VVGL::Rect::maxX)
+        .def("min_y", &VVGL::Rect::minY)
+        .def("max_y", &VVGL::Rect::maxY)
+        .def("mid_x", &VVGL::Rect::midX)
+        .def("mid_y", &VVGL::Rect::midY)
+        .def("top_left", &VVGL::Rect::topLeft)
+        .def("top_right", &VVGL::Rect::topRight)
+        .def("bot_left", &VVGL::Rect::botLeft)
+        .def("bot_right", &VVGL::Rect::botRight)
+        .def("center", &VVGL::Rect::center)
+        .def("is_zero", &VVGL::Rect::isZero)
+        .def("__str__", [](const VVGL::Rect& self) {
+            return "Rect(" + std::to_string(self.origin.x) + ", " + std::to_string(self.origin.y) + 
+                   ", " + std::to_string(self.size.width) + "x" + std::to_string(self.size.height) + ")";
+        });
     
     // Module-level functions
     m.def("get_platform_info", &get_platform_info, "Get platform information");
@@ -147,6 +455,7 @@ PYBIND11_MODULE(vvisf_bindings, m) {
         .def(py::init<VVISF::ISFValType, double, double, double, double>())
         .def("type", &VVISF::ISFVal::type)
         .def("get_double_val", &VVISF::ISFVal::getDoubleVal)
+        .def("get_float_val", &VVISF::ISFVal::getDoubleVal)  // Use getDoubleVal for float values
         .def("get_bool_val", &VVISF::ISFVal::getBoolVal)
         .def("get_long_val", &VVISF::ISFVal::getLongVal)
         .def("get_point_val_by_index", &VVISF::ISFVal::getPointValByIndex)
@@ -182,24 +491,38 @@ PYBIND11_MODULE(vvisf_bindings, m) {
     
     // ISFAttr class
     py::class_<VVISF::ISFAttr, std::shared_ptr<VVISF::ISFAttr>>(m, "ISFAttr")
-        .def(py::init<const std::string&, const std::string&, const std::string&, 
-                      VVISF::ISFValType, const VVISF::ISFVal&, const VVISF::ISFVal&, 
-                      const VVISF::ISFVal&, const VVISF::ISFVal&, 
-                      const std::vector<std::string>*, const std::vector<int32_t>*>(),
-             py::arg("name"), py::arg("description"), py::arg("label"), py::arg("type"),
-             py::arg("min_val") = VVISF::ISFNullVal(), py::arg("max_val") = VVISF::ISFNullVal(),
-             py::arg("default_val") = VVISF::ISFNullVal(), py::arg("identity_val") = VVISF::ISFNullVal(),
-             py::arg("labels") = nullptr, py::arg("values") = nullptr)
+        .def(
+            py::init([](const std::string& name,
+                          const std::string& description,
+                          const std::string& label,
+                          VVISF::ISFValType type,
+                          const VVISF::ISFVal& min_val,
+                          const VVISF::ISFVal& max_val,
+                          const VVISF::ISFVal& default_val,
+                          const VVISF::ISFVal& identity_val,
+                          const std::vector<std::string>& labels,
+                          const std::vector<int32_t>& values) {
+                const std::vector<std::string>* labels_ptr = labels.empty() ? nullptr : &labels;
+                const std::vector<int32_t>* values_ptr = values.empty() ? nullptr : &values;
+                return std::make_shared<VVISF::ISFAttr>(name, description, label, type, min_val, max_val, default_val, identity_val, labels_ptr, values_ptr);
+            }),
+            py::arg("name"),
+            py::arg("description"),
+            py::arg("label"),
+            py::arg("type"),
+            py::arg("min_val") = VVISF::ISFNullVal(),
+            py::arg("max_val") = VVISF::ISFNullVal(),
+            py::arg("default_val") = VVISF::ISFNullVal(),
+            py::arg("identity_val") = VVISF::ISFNullVal(),
+            py::arg("labels") = std::vector<std::string>{},
+            py::arg("values") = std::vector<int32_t>{}
+        )
         .def("name", &VVISF::ISFAttr::name)
         .def("description", &VVISF::ISFAttr::description)
         .def("label", &VVISF::ISFAttr::label)
         .def("type", &VVISF::ISFAttr::type)
         .def("current_val", &VVISF::ISFAttr::currentVal)
         .def("set_current_val", &VVISF::ISFAttr::setCurrentVal)
-        .def("update_and_get_eval_variable", &VVISF::ISFAttr::updateAndGetEvalVariable)
-        .def("should_have_image_buffer", &VVISF::ISFAttr::shouldHaveImageBuffer)
-        .def("get_current_image_buffer", &VVISF::ISFAttr::getCurrentImageBuffer)
-        .def("set_current_image_buffer", &VVISF::ISFAttr::setCurrentImageBuffer)
         .def("min_val", &VVISF::ISFAttr::minVal)
         .def("max_val", &VVISF::ISFAttr::maxVal)
         .def("default_val", &VVISF::ISFAttr::defaultVal)
@@ -304,7 +627,10 @@ PYBIND11_MODULE(vvisf_bindings, m) {
         .def("render_size", &VVISF::ISFScene::renderSize)
         .def("get_timestamp", &VVISF::ISFScene::getTimestamp)
         .def("set_throw_exceptions", &VVISF::ISFScene::setThrowExceptions)
-        .def("set_base_time", &VVISF::ISFScene::setBaseTime)
+        .def("set_base_time", [](VVISF::ISFScene& self) { 
+            VVGL::Timestamp now = VVGL::Timestamp();  // Default constructor creates current time
+            self.setBaseTime(now);
+        })
         .def("base_time", &VVISF::ISFScene::baseTime)
         // Getting attributes/INPUTS
         .def("input_named", &VVISF::ISFScene::inputNamed)
@@ -315,8 +641,107 @@ PYBIND11_MODULE(vvisf_bindings, m) {
         .def("image_imports", &VVISF::ISFScene::imageImports);
     
     // ISFScene creation functions
-    m.def("CreateISFSceneRef", &VVISF::CreateISFSceneRef, "Create an ISFScene");
+    m.def("CreateISFSceneRef", []() {
+        // Ensure GLFW context is initialized before creating scene
+        if (!initialize_glfw_context()) {
+            throw std::runtime_error("Failed to initialize GLFW context");
+        }
+        return VVISF::CreateISFSceneRef();
+    }, "Create an ISFScene");
     m.def("CreateISFSceneRefUsing", &VVISF::CreateISFSceneRefUsing, "Create an ISFScene with GL context");
+
+    // --- VVGL::GLBuffer enums ---
+    py::enum_<VVGL::GLBuffer::Type>(m, "GLBufferType")
+        .value("Type_CPU", VVGL::GLBuffer::Type_CPU)
+        .value("Type_Tex", VVGL::GLBuffer::Type_Tex)
+        .value("Type_RB", VVGL::GLBuffer::Type_RB)
+        .value("Type_PBO", VVGL::GLBuffer::Type_PBO)
+        .value("Type_VBO", VVGL::GLBuffer::Type_VBO)
+        .value("Type_EBO", VVGL::GLBuffer::Type_EBO)
+        .value("Type_FBO", VVGL::GLBuffer::Type_FBO)
+        .export_values();
+    py::enum_<VVGL::GLBuffer::Target>(m, "GLBufferTarget")
+        .value("Target_2D", VVGL::GLBuffer::Target_2D)
+        .value("Target_Cube", VVGL::GLBuffer::Target_Cube)
+        .export_values();
+    py::enum_<VVGL::GLBuffer::InternalFormat>(m, "InternalFormat")
+        .value("InternalFormat_RGBA", VVGL::GLBuffer::IF_RGBA)
+        .export_values();
+    py::enum_<VVGL::GLBuffer::PixelFormat>(m, "PixelFormat")
+        .value("PixelFormat_RGBA", VVGL::GLBuffer::PF_RGBA)
+        .export_values();
+    py::enum_<VVGL::GLBuffer::PixelType>(m, "PixelType")
+        .value("PixelType_UByte", VVGL::GLBuffer::PT_UByte)
+        .export_values();
+    py::enum_<VVGL::GLBuffer::Backing>(m, "Backing")
+        .value("Backing_None", VVGL::GLBuffer::Backing_None)
+        .export_values();
+
+    // --- VVGL::GLBuffer::Descriptor binding ---
+    py::class_<VVGL::GLBuffer::Descriptor>(m, "GLBufferDescriptor")
+        .def(py::init<>())
+        .def_readwrite("type", &VVGL::GLBuffer::Descriptor::type)
+        .def_readwrite("target", &VVGL::GLBuffer::Descriptor::target)
+        .def_readwrite("internalFormat", &VVGL::GLBuffer::Descriptor::internalFormat)
+        .def_readwrite("pixelFormat", &VVGL::GLBuffer::Descriptor::pixelFormat)
+        .def_readwrite("pixelType", &VVGL::GLBuffer::Descriptor::pixelType)
+        .def_readwrite("cpuBackingType", &VVGL::GLBuffer::Descriptor::cpuBackingType)
+        .def_readwrite("gpuBackingType", &VVGL::GLBuffer::Descriptor::gpuBackingType)
+        .def_readwrite("texRangeFlag", &VVGL::GLBuffer::Descriptor::texRangeFlag)
+        .def_readwrite("texClientStorageFlag", &VVGL::GLBuffer::Descriptor::texClientStorageFlag)
+        .def_readwrite("msAmount", &VVGL::GLBuffer::Descriptor::msAmount)
+        .def_readwrite("localSurfaceID", &VVGL::GLBuffer::Descriptor::localSurfaceID);
+
+    // --- VVGL::GLBuffer bindings ---
+    py::class_<VVGL::GLBuffer, std::shared_ptr<VVGL::GLBuffer>>(m, "GLBuffer")
+        .def(py::init<>())
+        .def("get_description", &VVGL::GLBuffer::getDescriptionString)
+        .def_readwrite("size", &VVGL::GLBuffer::size)
+        .def_readwrite("srcRect", &VVGL::GLBuffer::srcRect)
+        .def_readwrite("flipped", &VVGL::GLBuffer::flipped)
+        .def_readwrite("backingSize", &VVGL::GLBuffer::backingSize)
+        .def_readwrite("name", &VVGL::GLBuffer::name)
+        .def_readwrite("preferDeletion", &VVGL::GLBuffer::preferDeletion)
+        .def("calculate_backing_bytes_per_row", &VVGL::GLBuffer::calculateBackingBytesPerRow)
+        .def("calculate_backing_length", &VVGL::GLBuffer::calculateBackingLength)
+        .def("alloc_shallow_copy", &VVGL::GLBuffer::allocShallowCopy, py::return_value_policy::reference)
+        .def("is_full_frame", &VVGL::GLBuffer::isFullFrame)
+        .def("is_pot2d_tex", &VVGL::GLBuffer::isPOT2DTex)
+        .def("is_npot2d_tex", &VVGL::GLBuffer::isNPOT2DTex)
+        .def("get_description_string", &VVGL::GLBuffer::getDescriptionString)
+        .def_property_readonly("desc", [](const VVGL::GLBuffer& self) { return self.desc; })
+        .def("to_pil_image", &glbuffer_to_pil_image, "Convert GLBuffer to PIL Image")
+        .def("create_pil_image", &create_pil_image_from_buffer, 
+             "Create a new PIL Image with the same dimensions as this buffer",
+             py::arg("mode") = "RGBA", 
+             py::arg("color") = std::make_tuple(0, 0, 0, 255))
+        .def_static("from_pil_image", &pil_image_to_glbuffer, "Create GLBuffer from PIL Image", 
+                   py::arg("pil_image"));
+    // Expose enums as class attributes for test compatibility
+    py::object glbuffer = m.attr("GLBuffer");
+    glbuffer.attr("Type_Tex") = m.attr("GLBufferType").attr("Type_Tex");
+    glbuffer.attr("Target_2D") = m.attr("GLBufferTarget").attr("Target_2D");
+    glbuffer.attr("Target_Cube") = m.attr("GLBufferTarget").attr("Target_Cube");
+    glbuffer.attr("InternalFormat_RGBA") = m.attr("InternalFormat").attr("InternalFormat_RGBA");
+    glbuffer.attr("PixelFormat_RGBA") = m.attr("PixelFormat").attr("PixelFormat_RGBA");
+    glbuffer.attr("PixelType_UByte") = m.attr("PixelType").attr("PixelType_UByte");
+    glbuffer.attr("Backing_None") = m.attr("Backing").attr("Backing_None");
+
+    // --- VVGL::GLBufferPool bindings ---
+    py::class_<VVGL::GLBufferPool, std::shared_ptr<VVGL::GLBufferPool>>(m, "GLBufferPool")
+        .def(py::init<>())
+        .def("create_buffer", [](std::shared_ptr<VVGL::GLBufferPool>& self, const VVGL::Size& size) {
+            using namespace VVGL;
+            GLBuffer::Descriptor desc;
+            desc.type = GLBuffer::Type_Tex;
+            desc.target = static_cast<GLBuffer::Target>(Target_2D);
+            desc.internalFormat = static_cast<GLBuffer::InternalFormat>(IF_RGBA);
+            desc.pixelFormat = static_cast<GLBuffer::PixelFormat>(PF_RGBA);
+            desc.pixelType = static_cast<GLBuffer::PixelType>(PT_UByte);
+            return self->createBufferRef(desc, size);
+        }, py::arg("size"));
+
+    // Note: All buffer/image operations require the OpenGL context to be current (GLFW context). Provide helpers in Python for context management.
     
     // Basic module info
     m.attr("__version__") = "0.2.0";

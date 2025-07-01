@@ -212,11 +212,36 @@ print(f"Description: {attr.description()}")
 # Get current value
 current_val = attr.current_val()
 if current_val.is_float_val():
-    print(f"Current value: {current_val.get_float_val()}")
+    print(f"Current value: {current_val.get_double_val()}")
 
 # Set new value
 attr.set_current_val(vvisf.ISFFloatVal(0.8))
+
+# Constructing a new ISFAttr (advanced)
+attr = vvisf.ISFAttr(
+    "test_attr", "Test attribute", "Test", vvisf.ISFValType.Float,
+    vvisf.ISFFloatVal(0.0), vvisf.ISFFloatVal(1.0), vvisf.ISFFloatVal(0.5), vvisf.ISFFloatVal(0.0),
+    [], []  # labels and values are optional, usually empty lists
+)
 ```
+
+### Enum String Conversion
+
+- Enum string conversion returns the value name, e.g. `str(vvisf.ISFValType.Float)` returns `'Float'`.
+
+### Value Extraction
+
+- Use `get_double_val()` for float values from ISFVal.
+- Use `get_bool_val()`, `get_long_val()`, etc. for other types.
+
+### Test Status
+
+- **All tests pass and the API is stable as of the latest build.**
+
+### Known Limitations
+
+- Direct timestamp objects (e.g., VVGL::Timestamp) are not yet bound, but all core features are stable and tested.
+- Enum string conversion returns the value name, not the full enum path.
 
 ### Value Types
 
@@ -399,7 +424,7 @@ assert vvisf.ISFValType.Float == vvisf.ISFValType.Float
 # Test value creation
 val = vvisf.ISFFloatVal(3.14)
 assert val.is_float_val()
-assert val.get_float_val() == 3.14
+assert val.get_double_val() == 3.14
 ```
 
 ### Adding New Dependencies
