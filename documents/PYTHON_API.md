@@ -1,5 +1,7 @@
 # VVISF Python API Documentation
 
+> For build, troubleshooting, and AI/developer notes, see [ai-coding-documentation.md](ai-coding-documentation.md).
+
 This document provides comprehensive documentation for the VVISF Python bindings and the high-level ShaderRenderer API, which allow you to render ISF (Interactive Shader Format) shaders directly from Python.
 
 ## Table of Contents
