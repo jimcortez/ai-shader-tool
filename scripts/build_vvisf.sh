@@ -7,11 +7,19 @@ echo "Building VVISF-GL libraries with GLFW support..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 VVISF_DIR="$PROJECT_ROOT/external/VVISF-GL"
+PATCH_FILE="$PROJECT_ROOT/patches/vvisf-glfw-support.patch"
 
 # Check if VVISF-GL submodule exists
 if [ ! -f "$VVISF_DIR/README.md" ]; then
     echo "Error: VVISF-GL submodule not found at $VVISF_DIR"
-    echo "Run: git submodule update --init --recursive"
+    echo "Please run: git submodule update --init --recursive"
+    exit 1
+fi
+
+# Check if patch file exists
+if [ ! -f "$PATCH_FILE" ]; then
+    echo "Error: GLFW support patch not found at $PATCH_FILE"
+    echo "Please ensure the patch file exists and try again."
     exit 1
 fi
 
@@ -24,21 +32,35 @@ else
     echo "Detected x86_64 architecture"
 fi
 
-# Check if GLFW modifications are already applied
+# Apply GLFW patches
 cd "$VVISF_DIR"
-if ! grep -q "VVGL_SDK_GLFW" VVGL/Makefile; then
-    echo "Error: GLFW modifications not applied to VVGL Makefile"
-    echo "Please apply the GLFW support modifications manually"
-    exit 1
-fi
+echo "Applying GLFW support patches..."
 
-if ! grep -q "VVGL_SDK_GLFW" VVISF/Makefile; then
-    echo "Error: GLFW modifications not applied to VVISF Makefile"
-    echo "Please apply the GLFW support modifications manually"
-    exit 1
+# Check if patches are already applied
+if grep -q "VVGL_SDK_GLFW" VVGL/Makefile && grep -q "VVGL_SDK_GLFW" VVISF/Makefile; then
+    echo "✓ GLFW patches already applied"
+else
+    # Apply the patch
+    if patch -p1 < "$PATCH_FILE"; then
+        echo "✓ GLFW patches applied successfully"
+    else
+        echo "✗ Failed to apply GLFW patches"
+        echo ""
+        echo "Manual patch application required:"
+        echo "1. Edit external/VVISF-GL/VVGL/Makefile:"
+        echo "   - Change '-DVVGL_SDK_MAC' to '-DVVGL_SDK_GLFW'"
+        echo "   - Add '-I/opt/homebrew/include' to CPPFLAGS"
+        echo "   - Add '-L/opt/homebrew/lib -lglfw -lGLEW' to LDFLAGS"
+        echo ""
+        echo "2. Edit external/VVISF-GL/VVISF/Makefile:"
+        echo "   - Change '-DVVGL_SDK_MAC' to '-DVVGL_SDK_GLFW'"
+        echo "   - Add '-I/opt/homebrew/include' to CPPFLAGS"
+        echo "   - Add '-L/opt/homebrew/lib -lglfw -lGLEW' to LDFLAGS"
+        echo ""
+        echo "Then run this script again."
+        exit 1
+    fi
 fi
-
-echo "GLFW modifications already applied"
 
 # Build VVGL with GLFW support
 echo "Building VVGL..."

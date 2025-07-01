@@ -124,27 +124,230 @@ When adding new external dependencies:
 
 ### Common Issues
 
-1. **"VVISF-GL submodule not found"**
-   - Run: `git submodule update --init --recursive`
+#### 1. **"VVISF-GL submodule not found"**
+**Error:** `external/VVISF-GL` directory is empty or missing
 
-2. **"GLFW3 not found"**
-   - Install GLFW: `brew install glfw` (macOS) or `sudo apt-get install libglfw3-dev` (Ubuntu)
+**Solution:**
+```bash
+# Initialize submodules
+git submodule update --init --recursive
 
-3. **"GLEW not found"**
-   - Install GLEW: `brew install glew` (macOS) or `sudo apt-get install libglew-dev` (Ubuntu)
+# Verify submodule status
+git submodule status
+```
 
-4. **Build errors on macOS**
-   - Ensure you have Xcode Command Line Tools: `xcode-select --install`
+**If still empty:**
+```bash
+# Remove and re-add the submodule
+rm -rf external/VVISF-GL
+git submodule add https://github.com/mrRay/VVISF-GL.git external/VVISF-GL
+```
 
-5. **Architecture mismatch errors**
-   - The build script automatically detects architecture (ARM64/x86_64)
-   - For manual builds, set `ARCH=arm64` or `ARCH=x86_64` as needed
+#### 2. **"GLFW3 not found"**
+**Error:** Build fails with GLFW-related errors
+
+**Solution:**
+```bash
+# macOS
+brew install glfw
+
+# Ubuntu/Debian
+sudo apt-get install libglfw3-dev
+
+# Windows
+# Install via vcpkg or build from source
+```
+
+**Verify installation:**
+```bash
+# Check if GLFW is found
+pkg-config --exists glfw3 && echo "GLFW found" || echo "GLFW not found"
+
+# Check include paths
+ls /opt/homebrew/include/GLFW/glfw3.h 2>/dev/null || ls /usr/local/include/GLFW/glfw3.h 2>/dev/null
+```
+
+#### 3. **"GLEW not found"**
+**Error:** Build fails with GLEW-related errors
+
+**Solution:**
+```bash
+# macOS
+brew install glew
+
+# Ubuntu/Debian
+sudo apt-get install libglew-dev
+
+# Windows
+# Install via vcpkg or build from source
+```
+
+**Verify installation:**
+```bash
+# Check if GLEW is found
+pkg-config --exists glew && echo "GLEW found" || echo "GLEW not found"
+
+# Check include paths
+ls /opt/homebrew/include/GL/glew.h 2>/dev/null || ls /usr/local/include/GL/glew.h 2>/dev/null
+```
+
+#### 4. **"Failed to apply GLFW patches"**
+**Error:** Patch application fails during VVISF-GL build
+
+**Solution:**
+```bash
+# Manual patch application
+cd external/VVISF-GL
+patch -p1 < ../../patches/vvisf-glfw-support.patch
+```
+
+**If patch still fails, apply changes manually:**
+
+**Edit `external/VVISF-GL/VVGL/Makefile`:**
+```makefile
+# Find this line:
+CPPFLAGS += -I./include/ -DVVGL_SDK_MAC
+
+# Replace with:
+CPPFLAGS += -I./include/ -DVVGL_SDK_GLFW
+# Add GLFW and GLEW include paths
+CPPFLAGS += -I/opt/homebrew/include
+
+# Find this line:
+LDFLAGS += -framework Foundation -framework ImageIO -framework OpenGL -framework IOSurface -framework CoreGraphics -framework CoreVideo
+
+# Add after it:
+# Add GLFW and GLEW libraries
+LDFLAGS += -L/opt/homebrew/lib -lglfw -lGLEW
+```
+
+**Edit `external/VVISF-GL/VVISF/Makefile`:**
+```makefile
+# Same changes as above for VVGL/Makefile
+```
+
+#### 5. **"Build errors on macOS"**
+**Error:** Various macOS-specific build errors
+
+**Solution:**
+```bash
+# Install Xcode Command Line Tools
+xcode-select --install
+
+# Verify installation
+xcode-select -p
+```
+
+#### 6. **"Architecture mismatch errors"**
+**Error:** Linking fails due to architecture mismatch
+
+**Solution:**
+```bash
+# Check your architecture
+uname -m
+
+# For manual builds, specify architecture
+ARCH=arm64 ./scripts/build_vvisf.sh  # For Apple Silicon
+ARCH=x86_64 ./scripts/build_vvisf.sh # For Intel Macs
+```
+
+#### 7. **"CMake configuration failed"**
+**Error:** CMake can't find dependencies or configure project
+
+**Solution:**
+```bash
+# Clean build directory
+rm -rf build
+mkdir build
+cd build
+
+# Run CMake with verbose output
+cmake -DCMAKE_VERBOSE_MAKEFILE=ON ..
+
+# Check CMake cache
+cat CMakeCache.txt | grep -E "(GLFW|GLEW|VVISF)"
+```
+
+#### 8. **"Submodule modified content"**
+**Error:** Git shows modified content in submodules
+
+**Solution:**
+```bash
+# Check submodule status
+git submodule status
+
+# Reset submodule to clean state
+git submodule update --init --recursive --force
+
+# Or commit the changes if they're intentional
+cd external/VVISF-GL
+git add .
+git commit -m "Apply GLFW modifications"
+```
+
+### Debugging Steps
+
+#### **Step-by-step debugging:**
+1. **Check submodule status:**
+   ```bash
+   git submodule status
+   ls -la external/VVISF-GL/
+   ```
+
+2. **Verify dependencies:**
+   ```bash
+   # Check GLFW
+   pkg-config --modversion glfw3 2>/dev/null || echo "GLFW not found"
+   
+   # Check GLEW
+   pkg-config --modversion glew 2>/dev/null || echo "GLEW not found"
+   
+   # Check CMake
+   cmake --version
+   ```
+
+3. **Test patch application:**
+   ```bash
+   cd external/VVISF-GL
+   patch --dry-run -p1 < ../../patches/vvisf-glfw-support.patch
+   ```
+
+4. **Check architecture compatibility:**
+   ```bash
+   uname -m
+   file external/VVISF-GL/VVGL/bin/libVVGL.a 2>/dev/null || echo "Library not built yet"
+   ```
+
+5. **Run with verbose output:**
+   ```bash
+   # Verbose build script
+   bash -x ./scripts/build_vvisf.sh
+   
+   # Verbose CMake
+   cmake -DCMAKE_VERBOSE_MAKEFILE=ON ..
+   ```
 
 ### Platform-Specific Notes
 
 - **macOS**: Uses GLFW for cross-platform OpenGL context creation
 - **Linux**: Uses GLFW with X11 backend
 - **Windows**: Uses GLFW with Win32 backend
+
+### Getting Help
+
+If you're still experiencing issues:
+
+1. **Check the logs:** Look for specific error messages in the build output
+2. **Verify your environment:** Ensure all prerequisites are installed
+3. **Try manual steps:** Follow the manual patch application instructions above
+4. **Check architecture:** Ensure you're building for the correct architecture
+5. **Clean rebuild:** Remove build artifacts and start fresh
+
+**Common environment issues:**
+- Missing Xcode Command Line Tools on macOS
+- Outdated package managers (brew, apt)
+- Incorrect PATH or library search paths
+- Permission issues with system directories
 
 ## Current Status
 
