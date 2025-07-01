@@ -58,20 +58,23 @@
 - **Verification of patch application** before proceeding
 
 #### `scripts/setup.sh`
-- **Comprehensive prerequisite checking** (cmake, make, GLFW, GLEW)
+- **Comprehensive prerequisite checking** (cmake, make, GLFW, GLEW, Python, pyenv)
 - **Better submodule initialization** with verification
 - **Detailed error messages** with specific solutions
 - **Platform-specific installation instructions**
 - **Verbose output options** for debugging
+- **Python version verification** and pyenv recommendations
 
 ### **Improved Documentation**
 
 #### README.md Troubleshooting Section
-- **8 common issues** with detailed solutions
+- **9 common issues** with detailed solutions (including Python environment issues)
 - **Step-by-step debugging** instructions
 - **Platform-specific notes** (macOS, Linux, Windows)
 - **Verification commands** for dependencies
 - **Manual recovery procedures**
+- **Python environment setup** with pyenv recommendations
+- **Python version management** instructions for all platforms
 
 ### **Better Error Handling**
 - **Specific error messages** instead of generic failures
@@ -84,7 +87,7 @@
 ### **Successful Build Process**
 ```bash
 ✓ Submodule initialization
-✓ Prerequisite verification (GLFW, GLEW, cmake, make)
+✓ Prerequisite verification (GLFW, GLEW, cmake, make, Python, pyenv)
 ✓ Patch application (automatic)
 ✓ VVGL library build with GLFW support
 ✓ VVISF library build with GLFW support
@@ -169,6 +172,7 @@ rm -rf build external/VVISF-GL/VVGL/bin external/VVISF-GL/VVISF/bin
 3. **CI/CD Integration**: Add automated build and test pipelines
 4. **Documentation**: Add API documentation and usage examples
 5. **Performance Optimization**: Profile and optimize rendering performance
+6. **Python Environment Management**: Enhanced with pyenv recommendations and setup instructions
 
 ## Conclusion
 

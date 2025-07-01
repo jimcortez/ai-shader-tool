@@ -16,24 +16,93 @@ A Python project for rendering ISF (Interactive Shader Format) shaders using the
 - **Make** or **Ninja**
 - **C++ compiler** with C++11 support
 - **GLFW3** and **GLEW** libraries
+- **Python 3.8+** (for future Python bindings and development)
+- **pyenv** (recommended for Python version management)
 
 ### Installing Dependencies
 
 #### macOS
 ```bash
+# Install system dependencies
 brew install cmake glfw glew
+
+# Install pyenv for Python version management (recommended)
+brew install pyenv
+
+# Set up pyenv (add to your shell profile)
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+
+# Install Python 3.11 (recommended version)
+pyenv install 3.11.7
+pyenv global 3.11.7
+
+# Verify installation
+python --version
 ```
 
 #### Ubuntu/Debian
 ```bash
+# Install system dependencies
 sudo apt-get install cmake libglfw3-dev libglew-dev
+
+# Install pyenv for Python version management (recommended)
+curl https://pyenv.run | bash
+
+# Set up pyenv (add to your shell profile)
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+
+# Install Python 3.11 (recommended version)
+pyenv install 3.11.7
+pyenv global 3.11.7
+
+# Verify installation
+python --version
 ```
 
 #### Windows
-- Install CMake from https://cmake.org/download/
-- Install GLFW and GLEW via vcpkg or build from source
+```bash
+# Install CMake from https://cmake.org/download/
+# Install GLFW and GLEW via vcpkg or build from source
+
+# Install pyenv-win for Python version management (recommended)
+# Download from: https://github.com/pyenv-win/pyenv-win
+
+# Or use Chocolatey:
+choco install pyenv-win
+
+# Install Python 3.11 (recommended version)
+pyenv install 3.11.7
+pyenv global 3.11.7
+
+# Verify installation
+python --version
+```
 
 ## Quick Start
+
+### Python Environment Setup (Recommended)
+
+Before building the project, we recommend setting up a Python environment using pyenv:
+
+```bash
+# Ensure you're using the recommended Python version
+pyenv version
+
+# If not using 3.11.7, set it:
+pyenv local 3.11.7
+
+# Create a virtual environment (optional but recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Verify Python environment
+python --version
+which python  # Should point to your pyenv-managed Python
+```
 
 ### Fresh Clone Setup
 
@@ -285,6 +354,42 @@ git add .
 git commit -m "Apply GLFW modifications"
 ```
 
+#### 9. **"Python version issues"**
+**Error:** Wrong Python version or pyenv not working
+
+**Solution:**
+```bash
+# Check current Python version
+python --version
+
+# Check pyenv installation
+pyenv --version
+
+# List available Python versions
+pyenv versions
+
+# Set local Python version for this project
+pyenv local 3.11.7
+
+# Rehash pyenv (if needed)
+pyenv rehash
+
+# Verify Python path
+which python
+```
+
+**If pyenv is not found:**
+```bash
+# macOS
+brew install pyenv
+
+# Ubuntu/Debian
+curl https://pyenv.run | bash
+
+# Windows
+# Download from: https://github.com/pyenv-win/pyenv-win
+```
+
 ### Debugging Steps
 
 #### **Step-by-step debugging:**
@@ -304,6 +409,11 @@ git commit -m "Apply GLFW modifications"
    
    # Check CMake
    cmake --version
+   
+   # Check Python environment
+   python --version
+   which python
+   pyenv version 2>/dev/null || echo "pyenv not found"
    ```
 
 3. **Test patch application:**

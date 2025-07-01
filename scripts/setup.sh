@@ -52,6 +52,50 @@ if ! command -v make &> /dev/null; then
     exit 1
 fi
 
+# Check for Python and pyenv
+echo "Checking for Python and pyenv..."
+if ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
+    echo "Error: Python not found. Please install Python 3.8+."
+    echo "  macOS: brew install python or install pyenv first"
+    echo "  Ubuntu: sudo apt-get install python3"
+    echo "  Windows: Download from https://python.org/downloads/"
+    exit 1
+fi
+
+PYTHON_CMD=""
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &> /dev/null; then
+    PYTHON_CMD="python"
+fi
+
+if [ -n "$PYTHON_CMD" ]; then
+    PYTHON_VERSION=$($PYTHON_CMD --version 2>&1 | cut -d' ' -f2)
+    echo "✓ Python found: $PYTHON_VERSION"
+    
+    # Check if Python version is 3.8 or higher
+    PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
+    PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
+    
+    if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
+        echo "⚠ Warning: Python version $PYTHON_VERSION is older than recommended (3.8+)"
+        echo "  Consider using pyenv to install Python 3.11.7:"
+        echo "    pyenv install 3.11.7"
+        echo "    pyenv local 3.11.7"
+    fi
+fi
+
+if command -v pyenv &> /dev/null; then
+    echo "✓ pyenv found"
+    PYENV_VERSION=$(pyenv version 2>/dev/null | cut -d' ' -f1)
+    echo "  Current pyenv version: $PYENV_VERSION"
+else
+    echo "⚠ pyenv not found (recommended for Python version management)"
+    echo "  macOS: brew install pyenv"
+    echo "  Ubuntu: curl https://pyenv.run | bash"
+    echo "  Windows: Download from https://github.com/pyenv-win/pyenv-win"
+fi
+
 # Check for GLFW and GLEW
 echo "Checking for GLFW and GLEW..."
 GLFW_FOUND=false
