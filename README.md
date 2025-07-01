@@ -33,6 +33,9 @@ python -m isf_shader_renderer.cli --input path/to/shader.fs --output output.png
 **New Feature:**
 If a shader fails to compile, you can now access detailed error logs from Python via the ISFDoc object. See [Python API documentation](documents/PYTHON_API.md#error-handling-and-fallbacks) for usage examples.
 
+**New Feature:**
+You can now set a `max_texture_size` in your config to limit the maximum width/height of rendered images (default: 4096). If a render request exceeds this, the output will be clamped and a warning will be logged. See [Python API documentation](documents/PYTHON_API.md#configuration-file-example) for details.
+
 For full CLI usage and configuration examples, see [documents/PYTHON_API.md](documents/PYTHON_API.md#cli-usage) and [examples/config.yaml](examples/config.yaml).
 
 ## Documentation

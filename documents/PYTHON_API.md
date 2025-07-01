@@ -244,6 +244,7 @@ defaults:
   height: 1080
   quality: 95
   output_format: png
+  max_texture_size: 4096  # Maximum allowed width/height for rendered images (default: 4096)
 
 shaders:
   - input: "shaders/example.fs"
@@ -265,6 +266,10 @@ shaders:
       pupilSize: 0.12
       eyeMovementSpeed: 0.8
 ```
+
+#### max_texture_size (Defaults)
+- **Type:** integer (default: 4096)
+- **Description:** Maximum allowed width or height for any rendered image. If a render request exceeds this size, the renderer will clamp the output to this limit and log a warning. This helps prevent excessive memory usage or accidental oversized renders.
 
 ### Loading and Using Configuration
 
