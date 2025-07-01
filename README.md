@@ -6,8 +6,11 @@ A Python project for rendering ISF (Interactive Shader Format) shaders using the
 
 - Cross-platform ISF shader rendering using VVISF-GL
 - GLFW-based OpenGL context creation for headless/offscreen rendering
-- Python bindings (planned)
+- **Python bindings for VVISF** - Complete Python API for ISF shader rendering
 - Support for macOS, Linux, and Windows
+- Comprehensive ISF shader support (Source, Filter, Transition types)
+- Real-time shader rendering with time-based animations
+- Input attribute management and uniform control
 
 ## Prerequisites
 
@@ -126,11 +129,187 @@ which python  # Should point to your pyenv-managed Python
 3. **Run tests:**
    ```bash
    cd build && ./vvisf_test
+   pytest ../tests
    ```
 
-### Manual Setup
+## Python API Documentation
 
-If you prefer manual setup or the setup script fails:
+The project provides comprehensive Python bindings for the VVISF library, allowing you to render ISF shaders directly from Python.
+
+### Importing the Bindings
+
+```python
+import vvisf_bindings as vvisf
+
+# Check platform and availability
+print(f"Platform: {vvisf.get_platform_info()}")
+print(f"VVISF Available: {vvisf.is_vvisf_available()}")
+```
+
+### Core Classes
+
+#### ISFDoc - ISF Document Management
+
+The `ISFDoc` class represents an ISF file and provides access to its properties and inputs.
+
+```python
+# Create ISFDoc from file
+doc = vvisf.CreateISFDocRef("path/to/shader.fs")
+
+# Access file properties
+print(f"Name: {doc.name()}")
+print(f"Description: {doc.description()}")
+print(f"Type: {doc.type()}")  # ISFFileType.Source, Filter, or Transition
+
+# Get all inputs
+inputs = doc.inputs()
+for input_attr in inputs:
+    print(f"Input: {input_attr.name()} ({input_attr.type()})")
+
+# Get specific input types
+image_inputs = doc.image_inputs()
+audio_inputs = doc.audio_inputs()
+
+# Get shader source code
+frag_source = doc.frag_shader_source()
+vert_source = doc.vert_shader_source()
+```
+
+#### ISFScene - Shader Rendering
+
+The `ISFScene` class handles the actual rendering of ISF shaders.
+
+```python
+# Create a scene
+scene = vvisf.CreateISFSceneRef()
+
+# Load an ISF file
+scene.use_file("path/to/shader.fs")
+
+# Set input values
+scene.set_value_for_input_named(vvisf.ISFFloatVal(0.5), "intensity")
+scene.set_value_for_input_named(vvisf.ISFColorVal(1.0, 0.0, 0.0, 1.0), "color")
+
+# Render a frame
+from vvisf_bindings import VVGL
+size = VVGL.Size(1920, 1080)
+buffer = scene.create_and_render_a_buffer(size)
+```
+
+#### ISFAttr - Input Attributes
+
+The `ISFAttr` class represents individual input attributes in an ISF shader.
+
+```python
+# Get an input attribute
+attr = scene.input_named("intensity")
+
+# Access attribute properties
+print(f"Name: {attr.name()}")
+print(f"Type: {attr.type()}")
+print(f"Description: {attr.description()}")
+
+# Get current value
+current_val = attr.current_val()
+if current_val.is_float_val():
+    print(f"Current value: {current_val.get_float_val()}")
+
+# Set new value
+attr.set_current_val(vvisf.ISFFloatVal(0.8))
+```
+
+### Value Types
+
+The bindings support all ISF value types:
+
+```python
+# Boolean values
+bool_val = vvisf.ISFBoolVal(True)
+
+# Numeric values
+long_val = vvisf.ISFLongVal(42)
+float_val = vvisf.ISFFloatVal(3.14)
+
+# 2D Points
+point_val = vvisf.ISFPoint2DVal(100.0, 200.0)
+
+# Colors (RGBA)
+color_val = vvisf.ISFColorVal(1.0, 0.5, 0.0, 1.0)
+
+# Events
+event_val = vvisf.ISFEventVal(True)
+
+# Null values
+null_val = vvisf.ISFNullVal()
+```
+
+### Working with ISF Files
+
+#### Scanning for ISF Files
+
+```python
+# Scan directory for ISF files
+files = vvisf.scan_for_isf_files("/path/to/shaders")
+
+# Filter by type
+source_files = vvisf.scan_for_isf_files("/path/to/shaders", vvisf.ISFFileType.Source)
+filter_files = vvisf.scan_for_isf_files("/path/to/shaders", vvisf.ISFFileType.Filter)
+
+# Get default ISF files
+default_files = vvisf.get_default_isf_files()
+
+# Check if file is ISF
+is_isf = vvisf.file_is_probably_isf("path/to/file.fs")
+```
+
+#### Complete Rendering Example
+
+```python
+import vvisf_bindings as vvisf
+import time
+
+# Create scene and load shader
+scene = vvisf.CreateISFSceneRef()
+scene.use_file("examples/shaders/example.fs")
+
+# Set initial input values
+scene.set_value_for_input_named(vvisf.ISFFloatVal(0.5), "speed")
+scene.set_value_for_input_named(vvisf.ISFColorVal(1.0, 0.0, 0.0, 1.0), "baseColor")
+
+# Render animation frames
+for frame in range(60):
+    # Update time-based inputs
+    scene.set_value_for_input_named(vvisf.ISFFloatVal(frame * 0.1), "time")
+    
+    # Render frame
+    size = vvisf.VVGL.Size(1920, 1080)
+    buffer = scene.create_and_render_a_buffer(size)
+    
+    # Process buffer (save to file, display, etc.)
+    # buffer contains the rendered image data
+    
+    time.sleep(1/30)  # 30 FPS
+```
+
+### Error Handling
+
+The bindings include proper error handling:
+
+```python
+try:
+    doc = vvisf.CreateISFDocRef("nonexistent.fs")
+except vvisf.VVISFError as e:
+    print(f"Error loading ISF file: {e}")
+```
+
+### Platform Support
+
+The Python bindings work on all supported platforms:
+- **macOS**: Full support with GLFW backend
+- **Linux**: Full support with GLFW backend  
+- **Windows**: Full support with GLFW backend
+
+### Manual Setup
 
 1. **Initialize submodules:**
    ```bash
@@ -162,7 +341,15 @@ ai-shader-tool/
 │   └── build_vvisf.sh     # VVISF-GL build script
 ├── src/
 │   ├── vvisf_test.cpp     # C++ test executable
-│   └── vvisf_bindings.cpp # Python bindings (planned)
+│   ├── vvisf_bindings.cpp # Python bindings for VVISF
+│   └── isf_shader_renderer/
+│       ├── __init__.py    # Python package
+│       ├── cli.py         # Command-line interface
+│       ├── config.py      # Configuration management
+│       ├── renderer.py    # High-level renderer
+│       └── utils.py       # Utility functions
+├── tests/                 # Python test suite
+├── examples/              # Example shaders and usage
 ├── build/                 # Build output directory
 └── CMakeLists.txt         # Main CMake configuration
 ```
@@ -180,14 +367,42 @@ cd ../..
 ./scripts/build_vvisf.sh
 ```
 
+### Testing
+
+The project includes comprehensive tests for both C++ and Python components:
+
+```bash
+# Run C++ tests
+cd build && ./vvisf_test
+
+# Run Python tests
+pytest tests/
+
+# Run with coverage
+pytest tests/ --cov=src/isf_shader_renderer --cov-report=html
+```
+
+### Testing Python Bindings
+
+To test the new VVISF Python bindings:
+
+```python
+# Basic functionality test
+import vvisf_bindings as vvisf
+
+# Check availability
+assert vvisf.is_vvisf_available()
+
+# Test enum creation
+assert vvisf.ISFValType.Float == vvisf.ISFValType.Float
+
+# Test value creation
+val = vvisf.ISFFloatVal(3.14)
+assert val.is_float_val()
+assert val.get_float_val() == 3.14
+```
+
 ### Adding New Dependencies
-
-When adding new external dependencies:
-
-1. Add them as git submodules in `external/`
-2. Update `.gitignore` to exclude build artifacts but allow submodule content
-3. Create build scripts in `scripts/`
-4. Update `CMakeLists.txt` to find and link the new dependencies
 
 ## Troubleshooting
 
@@ -388,6 +603,55 @@ curl https://pyenv.run | bash
 
 # Windows
 # Download from: https://github.com/pyenv-win/pyenv-win
+```
+
+#### 10. **"Python bindings not found"**
+**Error:** `ModuleNotFoundError: No module named 'vvisf_bindings'`
+
+**Solution:**
+```bash
+# Check if pybind11 is installed
+brew list pybind11 2>/dev/null || echo "pybind11 not found"
+
+# Install pybind11 if missing
+brew install pybind11
+
+# Rebuild the project
+cd build
+cmake ..
+make vvisf_bindings
+
+# Check if the module was built
+ls -la src/isf_shader_renderer/vvisf_bindings*.so
+```
+
+#### 11. **"Python bindings import error"**
+**Error:** Import succeeds but `vvisf.is_vvisf_available()` returns False
+
+**Solution:**
+```bash
+# Check if VVISF libraries are built
+ls -la external/VVISF-GL/VVGL/bin/libVVGL.a
+ls -la external/VVISF-GL/VVISF/bin/libVVISF.a
+
+# Rebuild VVISF if needed
+./scripts/build_vvisf.sh
+
+# Rebuild Python bindings
+cd build && make vvisf_bindings
+```
+
+#### 12. **"OpenGL context creation failed"**
+**Error:** Python bindings fail to create OpenGL context
+
+**Solution:**
+```bash
+# Check GLFW installation
+pkg-config --exists glfw3 && echo "GLFW found" || echo "GLFW not found"
+
+# Check if running in headless environment
+echo $DISPLAY  # Should be set on Linux
+# On macOS, ensure you have proper graphics drivers
 ```
 
 ### Debugging Steps

@@ -63,18 +63,18 @@ Create Python bindings for core VVISF classes (ISFDoc, ISFScene, ISFAttr).
    - Bind attribute type and metadata access
 
 ### Exit Criteria
-- [ ] ISFDoc can be created from file path
-- [ ] ISFDoc can be created from shader strings
-- [ ] ISFScene can render basic shaders
-- [ ] Input attributes can be set and retrieved
-- [ ] All core methods are accessible from Python
+- [x] ISFDoc can be created from file path
+- [x] ISFDoc can be created from shader strings
+- [x] ISFScene can render basic shaders
+- [x] Input attributes can be set and retrieved
+- [x] All core methods are accessible from Python
 
 ### Tests Required
-- [ ] Test ISFDoc creation from file
-- [ ] Test ISFDoc creation from strings
-- [ ] Test ISFScene rendering
-- [ ] Test input attribute manipulation
-- [ ] Test error handling for invalid inputs
+- [x] Test ISFDoc creation from file
+- [x] Test ISFDoc creation from strings
+- [x] Test ISFScene rendering
+- [x] Test input attribute manipulation
+- [x] Test error handling for invalid inputs
 
 ---
 
