@@ -9,10 +9,10 @@ import tracemalloc
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import pyvvisf
 from PIL import Image
 
 from .config import ShaderConfig, ShaderRendererConfig
-from .platform import require_vvisf
 
 # Force logger to print INFO-level logs to stdout
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -30,14 +30,9 @@ class ShaderRenderer:
         self._current_shader: Optional[str] = None
         self._render_cache = {}  # (hash) -> PIL Image
 
-        # Require VVISF to be available
-        require_vvisf()
-
         # Initialize GLBufferPool for buffer reuse
         self._buffer_pool = None
         try:
-            import pyvvisf
-
             self._buffer_pool = pyvvisf.GLBufferPool()
             logger.info("GLBufferPool initialized for buffer reuse.")
         except Exception as e:
@@ -139,8 +134,6 @@ class ShaderRenderer:
 
             # Force reinitialize OpenGL context before each render
             try:
-                import pyvvisf
-
                 pyvvisf.reinitialize_glfw_context()
                 gl_info = pyvvisf.get_gl_info()
                 logger.info(
@@ -155,8 +148,6 @@ class ShaderRenderer:
 
             # Render the frame
             if self._scene:
-                import pyvvisf
-
                 size = pyvvisf.Size(width, height)
 
                 # Always use direct scene buffer creation for batch rendering stability
@@ -235,8 +226,6 @@ class ShaderRenderer:
         """Ensure the shader is loaded in the scene."""
         if self._current_shader != shader_content:
             try:
-                import pyvvisf
-
                 # Create new scene and load shader
                 self._scene = pyvvisf.CreateISFSceneRef()
 
@@ -260,8 +249,6 @@ class ShaderRenderer:
             return
 
         try:
-            import pyvvisf
-
             # Set time-based inputs
             self._scene.set_value_for_input_named(
                 pyvvisf.ISFFloatVal(time_code), "TIME"
@@ -289,8 +276,6 @@ class ShaderRenderer:
             return
 
         try:
-            import pyvvisf
-
             # Get input type from ISFDoc
             doc = self._scene.doc() if hasattr(self._scene, "doc") else None
             input_type = None
@@ -473,8 +458,6 @@ class ShaderRenderer:
             True if the shader is valid, False otherwise
         """
         try:
-            import pyvvisf
-
             # Try to create ISFDoc from shader content
             doc = pyvvisf.CreateISFDocRefWith(shader_content)
             if doc is None:
@@ -504,8 +487,6 @@ class ShaderRenderer:
             Dictionary containing shader information
         """
         try:
-            import pyvvisf
-
             # Create ISFDoc and extract detailed information
             doc = pyvvisf.CreateISFDocRefWith(shader_content)
 
@@ -575,11 +556,6 @@ class ShaderRenderer:
             except Exception as e:
                 logger.warning(f"Error during buffer pool cleanup: {e}")
 
-        # Clean up OpenGL context
-        try:
-            import pyvvisf
-
-            pyvvisf.cleanup_glfw_context()
-            logger.info("OpenGL context cleaned up.")
-        except Exception as e:
-            logger.warning(f"Error during OpenGL context cleanup: {e}")
+        # Note: pyvvisf does not provide a cleanup method for OpenGL context
+        # The context is managed internally by pyvvisf
+        logger.info("Cleanup completed.")

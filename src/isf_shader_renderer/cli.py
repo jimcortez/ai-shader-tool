@@ -13,7 +13,7 @@ from .config import ShaderRendererConfig, load_config
 from .renderer import ShaderRenderer
 
 app = typer.Typer(
-    name="isf-renderer",
+    name="isf-shader-render",
     help="Render ISF shaders to PNG images at specified time codes",
     add_completion=False,
 )
@@ -25,8 +25,8 @@ def main(
     config_file: Optional[Path] = typer.Option(
         None, "--config", "-c", help="Path to YAML configuration file"
     ),
-    shader: Optional[Path] = typer.Option(
-        None, "--shader", "-s", help="Path to ISF shader file (or use stdin)"
+    shader: Path = typer.Argument(
+        ..., help="Path to ISF shader file (use '-' for stdin)"
     ),
     time: List[float] = typer.Option(
         [],
@@ -40,16 +40,16 @@ def main(
     width: int = typer.Option(1920, "--width", "-w", help="Output width"),
     height: int = typer.Option(1080, "--height", "-h", help="Output height"),
     quality: int = typer.Option(95, "--quality", "-q", help="PNG quality (1-100)"),
-    max_texture_size: int = typer.Option(
-        4096,
-        "--max_texture_size",
-        help="Maximum allowed texture width/height (default: 4096)",
-    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     profile: bool = typer.Option(
         False,
         "--profile",
         help="Enable profiling of rendering stages (timing and memory usage)",
+    ),
+    info: bool = typer.Option(
+        False,
+        "--info",
+        help="Show information about the renderer and shader before rendering",
     ),
     inputs: Optional[str] = typer.Option(
         None,
@@ -91,18 +91,9 @@ def main(
         cfg.defaults.quality = quality
         if verbose:
             console.print("Applied command-line overrides")
-    # Set max_texture_size from CLI
-    cfg.defaults.max_texture_size = max_texture_size
 
     # Handle shader input
-    if shader:
-        if not shader.exists():
-            console.print(f"[red]Error: Shader file '{shader}' not found[/red]")
-            raise typer.Exit(1)
-        shader_content = shader.read_text()
-        if verbose:
-            console.print(f"Loaded shader from: {shader}")
-    else:
+    if str(shader) == "-":
         # Read from stdin
         if not sys.stdin.isatty():
             shader_content = sys.stdin.read()
@@ -110,9 +101,16 @@ def main(
                 console.print("Loaded shader from stdin")
         else:
             console.print(
-                "[red]Error: No shader file specified and no input from stdin[/red]"
+                "[red]Error: No input from stdin[/red]"
             )
             raise typer.Exit(1)
+    else:
+        if not shader.exists():
+            console.print(f"[red]Error: Shader file '{shader}' not found[/red]")
+            raise typer.Exit(1)
+        shader_content = shader.read_text()
+        if verbose:
+            console.print(f"Loaded shader from: {shader}")
 
     # Create renderer (will crash if VVISF is not available)
     try:
@@ -120,6 +118,28 @@ def main(
     except ImportError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1)
+
+    # Show info if requested
+    if info:
+        # Renderer info
+        table = Table(title="ISF Shader Renderer Information")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="magenta")
+        table.add_row("Version", __import__("isf_shader_renderer").__version__)
+        table.add_row("Author", getattr(__import__("isf_shader_renderer"), "__author__", ""))
+        table.add_row(
+            "Description", "Render ISF shaders to PNG images at specified time codes"
+        )
+        console.print(table)
+        # Shader info
+        shader_info = renderer.get_shader_info(shader_content)
+        shader_table = Table(title="Shader Information")
+        for k, v in shader_info.items():
+            if k == "inputs":
+                shader_table.add_row("inputs", str([i["name"] for i in v]))
+            else:
+                shader_table.add_row(str(k), str(v))
+        console.print(shader_table)
 
     # Parse inputs string into a dictionary
     input_dict = {}
@@ -156,7 +176,7 @@ def main(
             from .config import ShaderConfig
 
             shader_config = ShaderConfig(
-                input=str(shader) if shader else "<stdin>",
+                input=str(shader) if str(shader) != "-" else "<stdin>",
                 output=str(output),
                 times=time or [0.0],
                 width=width,
@@ -302,21 +322,10 @@ def render_single_shader(
     console.print(f"\n[green]Successfully rendered {len(time_codes)} frames[/green]")
 
 
-@app.command()
-def info() -> None:
-    """Show information about the ISF Shader Renderer."""
-    table = Table(title="ISF Shader Renderer Information")
-    table.add_column("Property", style="cyan")
-    table.add_column("Value", style="magenta")
-
-    table.add_row("Version", __import__("isf_shader_renderer").__version__)
-    table.add_row("Author", __import__("isf_shader_renderer").__author__)
-    table.add_row(
-        "Description", "Render ISF shaders to PNG images at specified time codes"
-    )
-
-    console.print(table)
+def cli():
+    """Entry point for the CLI."""
+    app()
 
 
 if __name__ == "__main__":
-    app()
+    cli()

@@ -9,7 +9,7 @@ description = "A Python tool for rendering ISF shaders to PNG images at specifie
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Jim Cortez", email = "jim.cortez@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -45,15 +45,18 @@ dev = [
     "mypy>=1.0.0",
     "pre-commit>=2.20.0",
 ]
+vvisf = [
+    "pyvvisf>=0.2.0",
+]
 
 [project.scripts]
-isf-renderer = "isf_shader_renderer.cli:main"
+isf-shader-render = "isf_shader_renderer.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/isf-shader-renderer"
-Repository = "https://github.com/yourusername/isf-shader-renderer"
-Documentation = "https://github.com/yourusername/isf-shader-renderer#readme"
-Issues = "https://github.com/yourusername/isf-shader-renderer/issues"
+Homepage = "https://github.com/jimcortez/ai-shader-tool"
+Repository = "https://github.com/jimcortez/ai-shader-tool"
+Documentation = "https://github.com/jimcortez/ai-shader-tool#readme"
+Issues = "https://github.com/jimcortez/ai-shader-tool/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -107,4 +110,8 @@ addopts = [
     "--cov=isf_shader_renderer",
     "--cov-report=term-missing",
     "--cov-report=html",
-] 
+]
+markers = [
+    "regression: marks tests for preventing regressions of previously fixed bugs",
+    "stress: marks stress tests for stability testing",
+]

@@ -1,24 +1,31 @@
 # AI Shader Tool
 
-A Python-based tool for rendering ISF (Interactive Shader Format) shaders to images using the VVISF-GL library. Provides a command-line interface (CLI) and Python API for batch and automated shader rendering.
+A Python-based tool for rendering ISF (Interactive Shader Format) shaders to images using the [pyvvisf](https://github.com/jimcortez/pyvvisf) library. Provides a command-line interface (CLI) and Python API for batch and automated shader rendering.
 
 ## Installation
 
-See [documents/VVISF-GL_Build_and_Integration.md](documents/VVISF-GL_Build_and_Integration.md) for detailed build and setup instructions.
+### Prerequisites
+- Python 3.8 or later
+- OpenGL drivers and platform support
 
-Basic steps:
+### Install from PyPI
 ```bash
-git clone --recursive https://github.com/your-username/ai-shader-tool.git
+pip install isf-shader-renderer
+```
+
+### Install from source
+```bash
+git clone https://github.com/your-username/ai-shader-tool.git
 cd ai-shader-tool
-./scripts/setup.sh
+pip install -e .
 ```
 
 ## Quick Start: Command Line Usage
 
-After building, use the CLI to render shaders:
+Use the CLI to render shaders:
 
 ```bash
-python -m isf_shader_renderer.cli --input path/to/shader.fs --output output.png
+isf-renderer --input path/to/shader.fs --output output.png
 ```
 
 ### CLI Options
@@ -30,19 +37,97 @@ python -m isf_shader_renderer.cli --input path/to/shader.fs --output output.png
 - `--height` / `-h`: Output image height
 - `--inputs`: Set shader input values (JSON or key=value)
 
-**New Feature:**
-If a shader fails to compile, you can now access detailed error logs from Python via the ISFDoc object. See [Python API documentation](documents/PYTHON_API.md#error-handling-and-fallbacks) for usage examples.
+**Features:**
+- Automatic shader validation and error reporting
+- Configurable `max_texture_size` to limit render dimensions (default: 4096)
+- Support for all ISF input types (bool, int, float, point2d, color, image)
+- Batch rendering with YAML configuration files
 
-**New Feature:**
-You can now set a `max_texture_size` in your config to limit the maximum width/height of rendered images (default: 4096). If a render request exceeds this, the output will be clamped and a warning will be logged. See [Python API documentation](documents/PYTHON_API.md#configuration-file-example) for details.
+For full CLI usage and configuration examples, see [examples/config.yaml](examples/config.yaml).
 
-For full CLI usage and configuration examples, see [documents/PYTHON_API.md](documents/PYTHON_API.md#cli-usage) and [examples/config.yaml](examples/config.yaml).
+## Python API Usage
 
-## Documentation
-- [Python API documentation](documents/PYTHON_API.md)
-- [Build & Integration Guide](documents/VVISF-GL_Build_and_Integration.md)
-- [Implementation Plan](IMPLEMENTATION_PLAN.md)
-- [AI Coding Documentation](documents/ai-coding-documentation.md)
+```python
+from isf_shader_renderer import ShaderRenderer, ShaderRendererConfig
+
+# Create renderer
+config = ShaderRendererConfig()
+renderer = ShaderRenderer(config)
+
+# Render a shader
+shader_content = """
+/*{
+    "DESCRIPTION": "Simple color shader",
+    "INPUTS": [
+        {
+            "NAME": "color",
+            "TYPE": "color",
+            "DEFAULT": [1.0, 0.0, 0.0, 1.0]
+        }
+    ]
+}*/
+
+void main() {
+    gl_FragColor = INPUTS_color;
+}
+"""
+
+renderer.render_frame(
+    shader_content=shader_content,
+    time_code=0.0,
+    output_path="output.png"
+)
+```
+
+## Dependencies
+
+This tool uses the [pyvvisf](https://github.com/jimcortez/pyvvisf) library for high-performance ISF shader rendering. The library provides Python bindings for the VVISF-GL C++ library and supports:
+
+- **macOS**: Full support (OpenGL, Metal)
+- **Linux**: Full support (OpenGL)
+- **Windows**: Full support (OpenGL)
+
+## Platform Requirements
+
+- OpenGL drivers and platform support
+- Python 3.8+
+- [pyvvisf](https://github.com/jimcortez/pyvvisf) (automatically installed as dependency)
+
+## Examples
+
+See the `examples/` directory for configuration and usage examples:
+
+```bash
+# Run the basic usage example
+python examples/basic_usage.py
+```
+
+## Development and Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run specific test categories
+pytest -m regression  # Run regression tests
+pytest -m stress     # Run stress tests
+
+# Run tests with verbose output
+pytest -v
+
+# Run tests with coverage
+pytest --cov=src/isf_shader_renderer
+```
+
+### Test Markers
+
+The test suite includes specialized markers for different test categories:
+
+- `@pytest.mark.regression`: Tests that prevent regressions of previously fixed bugs (segfaults, crashes)
+- `@pytest.mark.stress`: Stress tests for stability (multiple renders, batch processing)
+- `@pytest.mark.xfail`: Known failing tests that document current limitations
 
 ## License
 MIT
