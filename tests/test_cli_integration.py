@@ -28,8 +28,7 @@ void main() { gl_FragColor = vec4(0.2, 0.4, 0.6, 1.0); }'''
         try:
             result = subprocess.run([
                 sys.executable, '-m', 'isf_shader_renderer.cli',
-                'main',
-                '--shader', str(shader_path),
+                str(shader_path),
                 '--output', str(output_path),
             ], capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as e:
@@ -86,8 +85,7 @@ void main() { gl_FragColor = myColor; }'''
         try:
             result = subprocess.run([
                 sys.executable, '-m', 'isf_shader_renderer.cli',
-                'main',
-                '--shader', str(shader_path),
+                str(shader_path),
                 '--output', str(output_path),
                 '--inputs', f"myBool=true,myInt=123,myFloat=3.14,myPoint=0.25 0.75,myColor=0.9 0.8 0.7 1.0,inputImage={input_img_path}"
             ], capture_output=True, text=True, check=True)
@@ -126,8 +124,7 @@ void main() { gl_FragColor = vec4(TIME/2.0, 0.5, 0.5, 1.0); }'''
         try:
             result = subprocess.run([
                 sys.executable, '-m', 'isf_shader_renderer.cli',
-                'main',
-                '--shader', str(shader_path),
+                str(shader_path),
                 '--output', str(output_pattern),
                 '--time', '0', '--time', '1', '--time', '2'
             ], capture_output=True, text=True, check=True)
@@ -156,8 +153,7 @@ def test_cli_error_handling_invalid_shader():
         try:
             result = subprocess.run([
                 sys.executable, '-m', 'isf_shader_renderer.cli',
-                'main',
-                '--shader', str(shader_path),
+                str(shader_path),
                 '--output', str(output_path),
             ], capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
@@ -172,80 +168,3 @@ def test_cli_error_handling_invalid_shader():
                 print(f"First 64 bytes: {f.read(64)}")
             assert output_path.stat().st_size == 0, "Output file should be empty for invalid shader"
     shader_path.unlink(missing_ok=True)
-
-
-def test_cli_profile_flag():
-    """Test CLI with --profile flag enabled."""
-    shader_code = '''/*{
-    "DESCRIPTION": "Profile test shader",
-    "CREDIT": "Test",
-    "CATEGORIES": ["Test"],
-    "INPUTS": []
-}*/
-void main() { gl_FragColor = vec4(0.1, 0.2, 0.3, 1.0); }'''
-    with tempfile.NamedTemporaryFile(suffix='.fs', delete=False, mode='w') as shader_file:
-        shader_file.write(shader_code)
-        shader_path = Path(shader_file.name)
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as output_file:
-        output_path = Path(output_file.name)
-    try:
-        try:
-            result = subprocess.run([
-                sys.executable, '-m', 'isf_shader_renderer.cli',
-                'main',
-                '--shader', str(shader_path),
-                '--output', str(output_path),
-                '--time', '0',
-                '--profile'
-            ], capture_output=True, text=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print('STDOUT:', e.stdout)
-            print('STDERR:', e.stderr)
-            raise
-        assert output_path.exists(), f"Output file {output_path} was not created"
-        assert 'profile' in result.stdout.lower() or 'timing' in result.stdout.lower()
-    finally:
-        shader_path.unlink(missing_ok=True)
-        output_path.unlink(missing_ok=True)
-
-
-def test_cli_max_texture_size_enforcement():
-    """Test CLI enforces max texture size and logs a warning."""
-    shader_code = '''/*{
-    "DESCRIPTION": "Max texture size test shader",
-    "CREDIT": "Test",
-    "CATEGORIES": ["Test"],
-    "INPUTS": []
-}*/
-void main() { gl_FragColor = vec4(1.0); }'''
-    with tempfile.NamedTemporaryFile(suffix='.fs', delete=False, mode='w') as shader_file:
-        shader_file.write(shader_code)
-        shader_path = Path(shader_file.name)
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as output_file:
-        output_path = Path(output_file.name)
-    try:
-        try:
-            result = subprocess.run([
-                sys.executable, '-m', 'isf_shader_renderer.cli',
-                'main',
-                '--shader', str(shader_path),
-                '--output', str(output_path),
-                '--width', '2048', '--height', '2048', '--max_texture_size', '256'
-            ], capture_output=True, text=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print('STDOUT:', e.stdout)
-            print('STDERR:', e.stderr)
-            raise
-        assert output_path.exists(), f"Output file {output_path} was not created"
-        try:
-            image = Image.open(output_path)
-            assert image.size[0] <= 256 and image.size[1] <= 256
-        except Exception as e:
-            print(f"Output file size: {output_path.stat().st_size}")
-            with open(output_path, 'rb') as f:
-                print(f"First 64 bytes: {f.read(64)}")
-            raise
-        assert 'max_texture_size' in result.stdout or 'clamped' in result.stdout or 'warning' in result.stdout.lower()
-    finally:
-        shader_path.unlink(missing_ok=True)
-        output_path.unlink(missing_ok=True)

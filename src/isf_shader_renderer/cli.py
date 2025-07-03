@@ -42,11 +42,7 @@ def main(
     height: int = typer.Option(1080, "--height", "-h", help="Output height"),
     quality: int = typer.Option(95, "--quality", "-q", help="PNG quality (1-100)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
-    profile: bool = typer.Option(
-        False,
-        "--profile",
-        help="Enable profiling of rendering stages (timing and memory usage)",
-    ),
+
     info: bool = typer.Option(
         False,
         "--info",
@@ -187,11 +183,7 @@ def main(
     # Render shaders
     if config_file and cfg.shaders:
         # Use configuration file shaders
-        render_from_config(renderer, cfg, verbose, profile, ai_info)
-        if profile and not ai_info:
-            console.print(
-                "[yellow]Profiling enabled: see timing and memory usage above.[/yellow]"
-            )
+        render_from_config(renderer, cfg, verbose, ai_info)
     else:
         # Use command-line arguments
         if not output:
@@ -225,7 +217,6 @@ def main(
                 time_codes,
                 output,
                 verbose,
-                profile,
                 shader_config,
                 ai_info,
             )
@@ -235,17 +226,12 @@ def main(
             else:
                 console.print(f"[red]Error: {e}[/red]")
             raise typer.Exit(1)
-        if profile and not ai_info:
-            console.print(
-                "[yellow]Profiling enabled: see timing and memory usage above.[/yellow]"
-            )
 
 
 def render_from_config(
     renderer: ShaderRenderer,
     cfg: ShaderRendererConfig,
     verbose: bool,
-    profile: bool = False,
     ai_info: bool = False,
 ) -> None:
     """Render shaders from configuration file."""
@@ -288,7 +274,6 @@ def render_from_config(
                             time_code,
                             output_path,
                             shader_config,
-                            profile=profile,
                         )
                         progress.update(task, advance=1)
 
@@ -330,7 +315,6 @@ def render_from_config(
                         time_code,
                         output_path,
                         shader_config,
-                        profile=profile,
                     )
                     successful_frames += 1
 
@@ -350,7 +334,6 @@ def render_single_shader(
     time_codes: List[float],
     output_path: Path,
     verbose: bool,
-    profile: bool = False,
     shader_config=None,
     ai_info: bool = False,
 ) -> None:
@@ -382,7 +365,6 @@ def render_single_shader(
                         time_code,
                         frame_path,
                         shader_config,
-                        profile=profile,
                     )
                     progress.update(task, advance=1)
 
@@ -415,7 +397,6 @@ def render_single_shader(
                     time_code,
                     frame_path,
                     shader_config,
-                    profile=profile,
                 )
                 successful_frames += 1
 

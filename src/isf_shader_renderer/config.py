@@ -16,7 +16,6 @@ class Defaults:
     height: int = 1080
     quality: int = 95
     output_format: str = "png"
-    max_texture_size: int = 4096  # NEW: Maximum allowed texture width/height
 
 
 @dataclass
@@ -63,7 +62,7 @@ CONFIG_SCHEMA = {
                 "height": {"type": "integer", "minimum": 1},
                 "quality": {"type": "integer", "minimum": 1, "maximum": 100},
                 "output_format": {"type": "string", "enum": ["png", "jpg", "jpeg"]},
-                "max_texture_size": {"type": "integer", "minimum": 1},
+
             },
             "additionalProperties": False,
         },
@@ -118,7 +117,6 @@ def load_config(config_path: Path) -> ShaderRendererConfig:
             height=defaults_data.get("height", 1080),
             quality=defaults_data.get("quality", 95),
             output_format=defaults_data.get("output_format", "png"),
-            max_texture_size=defaults_data.get("max_texture_size", 4096),
         )
 
     # Parse shaders
@@ -146,7 +144,6 @@ def save_config(config: ShaderRendererConfig, config_path: Path) -> None:
             "height": config.defaults.height,
             "quality": config.defaults.quality,
             "output_format": config.defaults.output_format,
-            "max_texture_size": config.defaults.max_texture_size,
         },
         "shaders": [
             {
