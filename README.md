@@ -1,6 +1,6 @@
-# AI Shader Tool
+# ISF Shader Renderer
 
-A Python-based tool for rendering ISF (Interactive Shader Format) shaders to images using the [pyvvisf](https://github.com/jimcortez/pyvvisf) library. Provides a command-line interface (CLI) and Python API for batch and automated shader rendering.
+A Python-based tool for rendering ISF (Interactive Shader Format) shaders to images using the [pyvvisf](https://github.com/jimcortez/pyvvisf) library. Provides a command-line interface (CLI) and Python API for batch and automated shader rendering with AI-friendly output options.
 
 ## Installation
 
@@ -15,92 +15,135 @@ pip install isf-shader-renderer
 
 ### Install from source
 ```bash
-git clone https://github.com/your-username/ai-shader-tool.git
+git clone https://github.com/jecortez/ai-shader-tool.git
 cd ai-shader-tool
 pip install -e .
 ```
 
 ## Quick Start: Command Line Usage
 
-Use the CLI to render shaders:
+### Basic Rendering
+
+Render a single shader to an image:
 
 ```bash
-isf-renderer --input path/to/shader.fs --output output.png
+isf-shader-render path/to/shader.fs --output output.png
 ```
 
 ### CLI Options
-- `--input` / `-i`: Path to ISF shader file
-- `--output` / `-o`: Output image path
-- `--config` / `-c`: YAML config for batch rendering
-- `--time` / `-t`: Time value for animation
-- `--width` / `-w`: Output image width
-- `--height` / `-h`: Output image height
-- `--inputs`: Set shader input values (JSON or key=value)
 
-**Features:**
-- Automatic shader validation and error reporting
-- Configurable `max_texture_size` to limit render dimensions (default: 4096)
-- Support for all ISF input types (bool, int, float, point2d, color, image)
-- Batch rendering with YAML configuration files
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--config` | `-c` | Path to YAML configuration file for batch rendering |
+| `--output` | `-o` | Output image path (required when not using config) |
+| `--time` | `-t` | Time code for rendering (can be specified multiple times) |
+| `--width` | `-w` | Output image width (default: 1920) |
+| `--height` | `-h` | Output image height (default: 1080) |
+| `--quality` | `-q` | PNG quality 1-100 (default: 95) |
+| `--verbose` | `-v` | Enable verbose output |
+| `--profile` | | Enable profiling (timing and memory usage) |
+| `--info` | | Show renderer and shader information |
+| `--ai-info` | | Format output for AI processing (natural language, no colors) |
+| `--inputs` | | Shader input values as key=value pairs |
 
-For full CLI usage and configuration examples, see [examples/config.yaml](examples/config.yaml).
+### AI-Friendly Output
 
-## Python API Usage
+Use the `--ai-info` flag for AI systems and automated processing:
 
-```python
-from isf_shader_renderer import ShaderRenderer, ShaderRendererConfig
+```bash
+# Normal output (with colors and status updates)
+isf-shader-render shader.fs --output result.png
 
-# Create renderer
-config = ShaderRendererConfig()
-renderer = ShaderRenderer(config)
-
-# Render a shader
-shader_content = """
-/*{
-    "DESCRIPTION": "Simple color shader",
-    "INPUTS": [
-        {
-            "NAME": "color",
-            "TYPE": "color",
-            "DEFAULT": [1.0, 0.0, 0.0, 1.0]
-        }
-    ]
-}*/
-
-void main() {
-    gl_FragColor = INPUTS_color;
-}
-"""
-
-renderer.render_frame(
-    shader_content=shader_content,
-    time_code=0.0,
-    output_path="output.png"
-)
+# AI-friendly output (natural language only)
+isf-shader-render shader.fs --output result.png --ai-info
 ```
 
-## Dependencies
+**AI-friendly output features:**
+- Natural language error descriptions
+- No terminal colors or formatting
+- No progress bars or status updates
+- Clear, actionable error messages
+- Consistent format for AI parsing
 
-This tool uses the [pyvvisf](https://github.com/jimcortez/pyvvisf) library for high-performance ISF shader rendering. The library provides Python bindings for the VVISF-GL C++ library and supports:
+### Batch Rendering
+
+Render multiple shaders with different settings:
+
+```bash
+# Using configuration file
+isf-shader-render --config config.yaml
+
+# Using multiple time codes
+isf-shader-render shader.fs --output frame_%04d.png --time 0 --time 1 --time 2
+```
+
+### Shader Inputs
+
+Set shader input values:
+
+```bash
+# Set color input
+isf-shader-render shader.fs --output result.png --inputs "color=1.0 0.0 0.0 1.0"
+
+# Set multiple inputs
+isf-shader-render shader.fs --output result.png --inputs "intensity=0.8,position=0.5 0.3,enabled=true"
+```
+
+### Error Handling Examples
+
+The renderer provides helpful error messages:
+
+```bash
+# Missing main function
+isf-shader-render invalid.fs --output result.png --ai-info
+# Output: The shader is missing a main function. ISF shaders require a 'void main()' function to define the fragment shader entry point.
+
+# Syntax error
+isf-shader-render syntax_error.fs --output result.png --ai-info
+# Output: The shader contains syntax errors: Unexpected token '}'. Please check the GLSL syntax and ensure all brackets, semicolons, and function calls are properly formatted.
+
+# File not found
+isf-shader-render missing.fs --output result.png --ai-info
+# Output: File not found: missing.fs. Please check that the file path is correct and the file exists.
+```
+
+## Configuration Files
+
+Use YAML configuration files for complex batch rendering:
+
+```yaml
+# config.yaml
+defaults:
+  width: 1920
+  height: 1080
+  quality: 95
+  max_texture_size: 4096
+
+shaders:
+  - input: "shaders/red.fs"
+    output: "output/red_%04d.png"
+    times: [0.0, 1.0, 2.0]
+    width: 1280
+    height: 720
+    inputs:
+      intensity: 0.8
+      color: [1.0, 0.0, 0.0, 1.0]
+
+  - input: "shaders/blue.fs"
+    output: "output/blue_%04d.png"
+    times: [0.0, 0.5, 1.0, 1.5, 2.0]
+    inputs:
+      color: [0.0, 0.0, 1.0, 1.0]
+```
+
+## Platform Support
+
+This tool uses the [pyvvisf](https://github.com/jimcortez/pyvvisf) library for high-performance ISF shader rendering:
 
 - **macOS**: Full support (OpenGL, Metal)
 - **Linux**: Full support (OpenGL)
 - **Windows**: Full support (OpenGL)
 
-## Platform Requirements
-
-- OpenGL drivers and platform support
-- Python 3.8+
-- [pyvvisf](https://github.com/jimcortez/pyvvisf) (automatically installed as dependency)
-
-## Examples
-
-See the `examples/` directory for configuration and usage examples:
-
-```bash
-# Run the basic usage example
-python examples/basic_usage.py
-```
 
 ## Development and Testing
 
@@ -121,13 +164,6 @@ pytest -v
 pytest --cov=src/isf_shader_renderer
 ```
 
-### Test Markers
-
-The test suite includes specialized markers for different test categories:
-
-- `@pytest.mark.regression`: Tests that prevent regressions of previously fixed bugs (segfaults, crashes)
-- `@pytest.mark.stress`: Stress tests for stability (multiple renders, batch processing)
-- `@pytest.mark.xfail`: Known failing tests that document current limitations
-
 ## License
-MIT
+
+MIT License - see [LICENSE](LICENSE) file for details.

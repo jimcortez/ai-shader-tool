@@ -11,6 +11,7 @@ from rich.table import Table
 
 from .config import ShaderRendererConfig, load_config
 from .renderer import ShaderRenderer
+from .utils import format_error_for_ai, format_success_for_ai
 
 app = typer.Typer(
     name="isf-shader-render",
@@ -51,6 +52,11 @@ def main(
         "--info",
         help="Show information about the renderer and shader before rendering",
     ),
+    ai_info: bool = typer.Option(
+        False,
+        "--ai-info",
+        help="Format output for AI processing (natural language, no colors/emojis)",
+    ),
     inputs: Optional[str] = typer.Option(
         None,
         "--inputs",
@@ -59,29 +65,40 @@ def main(
 ) -> None:
     """Render ISF shaders to PNG images."""
 
-    if verbose:
+    # Validate that --info and --ai-info are not used together
+    if info and ai_info:
+        console.print("[red]Error: --info and --ai-info flags cannot be used together[/red]")
+        raise typer.Exit(1)
+
+    if verbose and not ai_info:
         console.print("[bold blue]ISF Shader Renderer[/bold blue]")
         console.print(f"Version: {__import__('isf_shader_renderer').__version__}")
 
     # Load configuration
     if isinstance(config_file, Path) and config_file:
         if not config_file.exists():
-            console.print(
-                f"[red]Error: Configuration file '{config_file}' not found[/red]"
-            )
+            if ai_info:
+                print(f"Error: Configuration file '{config_file}' not found")
+            else:
+                console.print(
+                    f"[red]Error: Configuration file '{config_file}' not found[/red]"
+                )
             raise typer.Exit(1)
 
         try:
             cfg = load_config(config_file)
-            if verbose:
+            if verbose and not ai_info:
                 console.print(f"Loaded configuration from: {config_file}")
         except Exception as e:
-            console.print(f"[red]Error loading configuration: {e}[/red]")
+            if ai_info:
+                print(format_error_for_ai(e, "configuration loading"))
+            else:
+                console.print(f"[red]Error loading configuration: {e}[/red]")
             raise typer.Exit(1)
     else:
         # Create default configuration
         cfg = ShaderRendererConfig()
-        if verbose:
+        if verbose and not ai_info:
             console.print("Using default configuration")
 
     # Override configuration with command-line arguments
@@ -89,7 +106,7 @@ def main(
         cfg.defaults.width = width
         cfg.defaults.height = height
         cfg.defaults.quality = quality
-        if verbose:
+        if verbose and not ai_info:
             console.print("Applied command-line overrides")
 
     # Handle shader input
@@ -97,30 +114,39 @@ def main(
         # Read from stdin
         if not sys.stdin.isatty():
             shader_content = sys.stdin.read()
-            if verbose:
+            if verbose and not ai_info:
                 console.print("Loaded shader from stdin")
         else:
-            console.print(
-                "[red]Error: No input from stdin[/red]"
-            )
+            if ai_info:
+                print("Error: No input from stdin")
+            else:
+                console.print(
+                    "[red]Error: No input from stdin[/red]"
+                )
             raise typer.Exit(1)
     else:
         if not shader.exists():
-            console.print(f"[red]Error: Shader file '{shader}' not found[/red]")
+            if ai_info:
+                print(f"Error: Shader file '{shader}' not found")
+            else:
+                console.print(f"[red]Error: Shader file '{shader}' not found[/red]")
             raise typer.Exit(1)
         shader_content = shader.read_text()
-        if verbose:
+        if verbose and not ai_info:
             console.print(f"Loaded shader from: {shader}")
 
     # Create renderer (will crash if VVISF is not available)
     try:
         renderer = ShaderRenderer(cfg)
     except ImportError as e:
-        console.print(f"[red]Error: {e}[/red]")
+        if ai_info:
+            print(format_error_for_ai(e, "renderer initialization"))
+        else:
+            console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1)
 
     # Show info if requested
-    if info:
+    if info and not ai_info:
         # Renderer info
         table = Table(title="ISF Shader Renderer Information")
         table.add_column("Property", style="cyan")
@@ -148,9 +174,12 @@ def main(
             if not pair.strip():
                 continue
             if "=" not in pair:
-                console.print(
-                    f"[red]Invalid input format: {pair} (expected key=value)[/red]"
-                )
+                if ai_info:
+                    print(f"Invalid input format: {pair} (expected key=value)")
+                else:
+                    console.print(
+                        f"[red]Invalid input format: {pair} (expected key=value)[/red]"
+                    )
                 raise typer.Exit(1)
             key, value = pair.split("=", 1)
             input_dict[key.strip()] = value.strip()
@@ -158,17 +187,20 @@ def main(
     # Render shaders
     if config_file and cfg.shaders:
         # Use configuration file shaders
-        render_from_config(renderer, cfg, verbose, profile)
-        if profile:
+        render_from_config(renderer, cfg, verbose, profile, ai_info)
+        if profile and not ai_info:
             console.print(
                 "[yellow]Profiling enabled: see timing and memory usage above.[/yellow]"
             )
     else:
         # Use command-line arguments
         if not output:
-            console.print(
-                "[red]Error: Output path required when not using config file[/red]"
-            )
+            if ai_info:
+                print("Error: Output path required when not using config file")
+            else:
+                console.print(
+                    "[red]Error: Output path required when not using config file[/red]"
+                )
             raise typer.Exit(1)
         # If inputs are provided, create a ShaderConfig and pass to renderer
         shader_config = None
@@ -195,11 +227,15 @@ def main(
                 verbose,
                 profile,
                 shader_config,
+                ai_info,
             )
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+            if ai_info:
+                print(format_error_for_ai(e, "shader rendering"))
+            else:
+                console.print(f"[red]Error: {e}[/red]")
             raise typer.Exit(1)
-        if profile:
+        if profile and not ai_info:
             console.print(
                 "[yellow]Profiling enabled: see timing and memory usage above.[/yellow]"
             )
@@ -210,31 +246,75 @@ def render_from_config(
     cfg: ShaderRendererConfig,
     verbose: bool,
     profile: bool = False,
+    ai_info: bool = False,
 ) -> None:
     """Render shaders from configuration file."""
     total_shaders = len(cfg.shaders)
     total_frames = sum(len(shader.times) for shader in cfg.shaders)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task(
-            f"Rendering {total_shaders} shaders ({total_frames} frames total)...",
-            total=total_frames,
+    if not ai_info:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task(
+                f"Rendering {total_shaders} shaders ({total_frames} frames total)...",
+                total=total_frames,
+            )
+
+            for shader_config in cfg.shaders:
+                if verbose:
+                    console.print(f"\nProcessing shader: {shader_config.input}")
+
+                # Load shader content
+                shader_path = Path(shader_config.input)
+                if not shader_path.exists():
+                    console.print(
+                        f"[red]Warning: Shader file '{shader_path}' not found, skipping[/red]"
+                    )
+                    continue
+
+                shader_content = shader_path.read_text()
+
+                # Render frames
+                for i, time_code in enumerate(shader_config.times):
+                    output_path = Path(shader_config.output % i)
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    try:
+                        renderer.render_frame(
+                            shader_content,
+                            time_code,
+                            output_path,
+                            shader_config,
+                            profile=profile,
+                        )
+                        progress.update(task, advance=1)
+
+                        if verbose:
+                            console.print(
+                                f"  Rendered frame {i+1}/{len(shader_config.times)} at time {time_code}s"
+                            )
+
+                    except Exception as e:
+                        console.print(
+                            f"[red]Error rendering frame {i+1} at time {time_code}s: {e}[/red]"
+                        )
+
+        console.print(
+            f"\n[green]Successfully rendered {total_frames} frames from {total_shaders} shaders[/green]"
         )
+    else:
+        # AI-friendly output mode
+        successful_frames = 0
+        failed_frames = 0
 
         for shader_config in cfg.shaders:
-            if verbose:
-                console.print(f"\nProcessing shader: {shader_config.input}")
-
             # Load shader content
             shader_path = Path(shader_config.input)
             if not shader_path.exists():
-                console.print(
-                    f"[red]Warning: Shader file '{shader_path}' not found, skipping[/red]"
-                )
+                print(f"Warning: Shader file '{shader_path}' not found, skipping")
                 continue
 
             shader_content = shader_path.read_text()
@@ -252,21 +332,16 @@ def render_from_config(
                         shader_config,
                         profile=profile,
                     )
-                    progress.update(task, advance=1)
-
-                    if verbose:
-                        console.print(
-                            f"  Rendered frame {i+1}/{len(shader_config.times)} at time {time_code}s"
-                        )
+                    successful_frames += 1
 
                 except Exception as e:
-                    console.print(
-                        f"[red]Error rendering frame {i+1} at time {time_code}s: {e}[/red]"
-                    )
+                    failed_frames += 1
+                    print(format_error_for_ai(e, f"rendering frame {i+1} at time {time_code}s"))
 
-    console.print(
-        f"\n[green]Successfully rendered {total_frames} frames from {total_shaders} shaders[/green]"
-    )
+        if failed_frames == 0:
+            print(format_success_for_ai(successful_frames))
+        else:
+            print(f"Completed rendering with {successful_frames} successful frames and {failed_frames} failed frames from {total_shaders} shaders")
 
 
 def render_single_shader(
@@ -277,20 +352,55 @@ def render_single_shader(
     verbose: bool,
     profile: bool = False,
     shader_config=None,
+    ai_info: bool = False,
 ) -> None:
     """Render a single shader with multiple time codes."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task(
-            f"Rendering {len(time_codes)} frames...",
-            total=len(time_codes),
-        )
+    if not ai_info:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task(
+                f"Rendering {len(time_codes)} frames...",
+                total=len(time_codes),
+            )
+
+            for i, time_code in enumerate(time_codes):
+                # Handle output path formatting
+                if "%" in str(output_path):
+                    frame_path = Path(str(output_path) % i)
+                else:
+                    frame_path = output_path
+
+                try:
+                    renderer.render_frame(
+                        shader_content,
+                        time_code,
+                        frame_path,
+                        shader_config,
+                        profile=profile,
+                    )
+                    progress.update(task, advance=1)
+
+                    if verbose:
+                        console.print(
+                            f"Rendered frame {i+1}/{len(time_codes)} at time {time_code}s"
+                        )
+
+                except Exception as e:
+                    console.print(
+                        f"[red]Error rendering frame {i+1} at time {time_code}s: {e}[/red]"
+                    )
+
+        console.print(f"\n[green]Successfully rendered {len(time_codes)} frames[/green]")
+    else:
+        # AI-friendly output mode
+        successful_frames = 0
+        failed_frames = 0
 
         for i, time_code in enumerate(time_codes):
             # Handle output path formatting
@@ -307,19 +417,16 @@ def render_single_shader(
                     shader_config,
                     profile=profile,
                 )
-                progress.update(task, advance=1)
-
-                if verbose:
-                    console.print(
-                        f"Rendered frame {i+1}/{len(time_codes)} at time {time_code}s"
-                    )
+                successful_frames += 1
 
             except Exception as e:
-                console.print(
-                    f"[red]Error rendering frame {i+1} at time {time_code}s: {e}[/red]"
-                )
+                failed_frames += 1
+                print(format_error_for_ai(e, f"rendering frame {i+1} at time {time_code}s"))
 
-    console.print(f"\n[green]Successfully rendered {len(time_codes)} frames[/green]")
+        if failed_frames == 0:
+            print(format_success_for_ai(successful_frames))
+        else:
+            print(f"Completed rendering with {successful_frames} successful frames and {failed_frames} failed frames")
 
 
 def cli():
