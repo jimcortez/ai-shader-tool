@@ -40,10 +40,10 @@ class ShaderRenderer:
             shader_config: Optional shader-specific configuration
         """
         # Validate shader before rendering
-        if not self.validate_shader(shader_content):
-            raise RuntimeError(
-                "Shader validation failed: shader is invalid. No image will be generated."
-            )
+        # if not self.validate_shader(shader_content):
+        #     raise RuntimeError(
+        #         "Shader validation failed: shader is invalid. No image will be generated."
+        #     )
 
         # Get render dimensions
         width, height = self._get_dimensions(shader_config)
@@ -73,7 +73,7 @@ class ShaderRenderer:
                 logger.info(f"Successfully rendered frame to {output_path}")
 
         except Exception as e:
-            logger.error(f"Failed to render frame: {e}")
+            logger.error(f"Failed to render frame")
             raise RuntimeError(f"Failed to render frame: {e}")
 
     def _set_shader_inputs(
@@ -179,7 +179,7 @@ class ShaderRenderer:
 
                 return True
         except Exception as e:
-            logger.warning(f"Shader validation failed: {e}")
+            logger.error(f"Shader validation failed: {e}")
             return False
 
     def get_shader_info(self, shader_content: str) -> Dict[str, Any]:

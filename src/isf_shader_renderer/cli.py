@@ -342,6 +342,8 @@ def render_single_shader(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not ai_info:
+        successful_frames = 0
+        failed_frames = 0
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -367,6 +369,7 @@ def render_single_shader(
                         shader_config,
                     )
                     progress.update(task, advance=1)
+                    successful_frames += 1
 
                     if verbose:
                         console.print(
@@ -374,11 +377,15 @@ def render_single_shader(
                         )
 
                 except Exception as e:
+                    failed_frames += 1
                     console.print(
                         f"[red]Error rendering frame {i+1} at time {time_code}s: {e}[/red]"
                     )
 
-        console.print(f"\n[green]Successfully rendered {len(time_codes)} frames[/green]")
+        if failed_frames == 0:
+            console.print(f"\n[green]Successfully rendered {successful_frames} frames[/green]")
+        else:
+            console.print(f"\n[yellow]Completed rendering with {successful_frames} successful frame(s) and {failed_frames} failed frame(s)[/yellow]")
     else:
         # AI-friendly output mode
         successful_frames = 0

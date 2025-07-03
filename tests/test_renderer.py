@@ -500,8 +500,6 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
             assert image.mode == 'RGBA'
 
 
-
-    @pytest.mark.xfail(reason="pyvvisf does not currently catch non-constant loop conditions as invalid")
     def test_shader_with_non_constant_loop_condition_fails(self):
         """Test that a shader with a non-constant loop condition fails with the expected GLSL error and does not generate an image file."""
         import pytest
