@@ -6,19 +6,19 @@ defaults:
   width: 1920
   height: 1080
   quality: 95
-  output_format: "png"
+  output_format: "jpg"
 
 # Shader definitions
 shaders:
   # Example 1: Simple shader with multiple time codes
   - input: "shaders/wave.fs"
-    output: "output/wave_%04d.png"
+    output: "output/wave_%04d.jpg"
     times: [0.0, 0.5, 1.0, 1.5, 2.0]
     # Uses default width/height/quality
   
   # Example 2: Shader with custom dimensions
   - input: "shaders/particles.fs"
-    output: "output/particles_%04d.png"
+    output: "output/particles_%04d.jpg"
     times: [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
     width: 1280
     height: 720
@@ -26,7 +26,7 @@ shaders:
   
   # Example 3: High-quality render
   - input: "shaders/complex.fs"
-    output: "output/complex_%04d.png"
+    output: "output/complex_%04d.jpg"
     times: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
     width: 2560
     height: 1440
@@ -34,7 +34,7 @@ shaders:
   
   # Example 4: Animation sequence
   - input: "shaders/animation.fs"
-    output: "output/animation_%04d.png"
+    output: "output/animation_%04d.jpg"
     times: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     width: 1920
     height: 1080 

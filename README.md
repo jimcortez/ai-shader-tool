@@ -1,379 +1,201 @@
-# AI Shader Tool
+# ISF Shader Renderer
 
-A Python project for rendering ISF (Interactive Shader Format) shaders using the VVISF-GL library, which provides C++ bindings for ISF shader rendering built on VVGL for OpenGL operations.
+A Python-based tool for rendering ISF (Interactive Shader Format) shaders to images using the [pyvvisf](https://github.com/jimcortez/pyvvisf) library. Provides a command-line interface (CLI) and Python API for batch and automated shader rendering with AI-friendly output options.
 
-## Features
+## Installation
 
-- Cross-platform ISF shader rendering using VVISF-GL
-- GLFW-based OpenGL context creation for headless/offscreen rendering
-- Python bindings (planned)
-- Support for macOS, Linux, and Windows
+### Prerequisites
+- Python 3.8 or later
+- OpenGL drivers and platform support
 
-## Prerequisites
-
-- **Git** (for submodule management)
-- **CMake** (3.15 or later)
-- **Make** or **Ninja**
-- **C++ compiler** with C++11 support
-- **GLFW3** and **GLEW** libraries
-
-### Installing Dependencies
-
-#### macOS
+### Install from PyPI
 ```bash
-brew install cmake glfw glew
+pip install isf-shader-renderer
 ```
 
-#### Ubuntu/Debian
+### Install from source
 ```bash
-sudo apt-get install cmake libglfw3-dev libglew-dev
+git clone https://github.com/jecortez/ai-shader-tool.git
+cd ai-shader-tool
+pip install -e .
 ```
 
-#### Windows
-- Install CMake from https://cmake.org/download/
-- Install GLFW and GLEW via vcpkg or build from source
+## Quick Start: Command Line Usage
 
-## Quick Start
+### Basic Rendering
 
-### Fresh Clone Setup
-
-1. **Clone the repository with submodules:**
-   ```bash
-   git clone --recursive https://github.com/your-username/ai-shader-tool.git
-   cd ai-shader-tool
-   ```
-
-2. **Run the setup script:**
-   ```bash
-   ./scripts/setup.sh
-   ```
-
-   This script will:
-   - Initialize all git submodules
-   - Check prerequisites
-   - Build VVISF-GL libraries with GLFW support
-   - Build the main project
-
-3. **Run tests:**
-   ```bash
-   cd build && ./vvisf_test
-   ```
-
-### Manual Setup
-
-If you prefer manual setup or the setup script fails:
-
-1. **Initialize submodules:**
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-2. **Build VVISF-GL libraries:**
-   ```bash
-   ./scripts/build_vvisf.sh
-   ```
-
-3. **Build the main project:**
-   ```bash
-   mkdir -p build && cd build
-   cmake ..
-   make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-   ```
-
-## Project Structure
-
-```
-ai-shader-tool/
-├── external/
-│   └── VVISF-GL/          # Git submodule - VVISF-GL library
-│       ├── VVGL/          # VVGL graphics library
-│       └── VVISF/         # VVISF ISF rendering library
-├── scripts/
-│   ├── setup.sh           # Complete setup script
-│   └── build_vvisf.sh     # VVISF-GL build script
-├── src/
-│   ├── vvisf_test.cpp     # C++ test executable
-│   └── vvisf_bindings.cpp # Python bindings (planned)
-├── build/                 # Build output directory
-└── CMakeLists.txt         # Main CMake configuration
-```
-
-## Development
-
-### Updating VVISF-GL
-
-To update to a newer version of VVISF-GL:
+Render a single shader to an image:
 
 ```bash
-cd external/VVISF-GL
-git pull origin main
-cd ../..
-./scripts/build_vvisf.sh
+isf-shader-render path/to/shader.fs --output output.png
 ```
 
-### Adding New Dependencies
+### CLI Options
 
-When adding new external dependencies:
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--config` | `-c` | Path to YAML configuration file for batch rendering |
+| `--output` | `-o` | Output image path (required when not using config) |
+| `--time` | `-t` | Time code for rendering (can be specified multiple times) |
+| `--width` | `-w` | Output image width (default: 1920) |
+| `--height` | `-h` | Output image height (default: 1080) |
+| `--quality` | `-q` | PNG quality 1-100 (default: 95) |
+| `--verbose` | `-v` | Enable verbose output |
+| `--profile` | | Enable profiling (timing and memory usage) |
+| `--info` | | Show renderer and shader information |
+| `--ai-info` | | Format output for AI processing (natural language, no colors) |
+| `--inputs` | | Shader input values as key=value pairs |
 
-1. Add them as git submodules in `external/`
-2. Update `.gitignore` to exclude build artifacts but allow submodule content
-3. Create build scripts in `scripts/`
-4. Update `CMakeLists.txt` to find and link the new dependencies
+### AI-Friendly Output
 
-## Troubleshooting
+Use the `--ai-info` flag for AI systems and automated processing:
 
-### Common Issues
-
-#### 1. **"VVISF-GL submodule not found"**
-**Error:** `external/VVISF-GL` directory is empty or missing
-
-**Solution:**
 ```bash
-# Initialize submodules
-git submodule update --init --recursive
+# Normal output (with colors and status updates)
+isf-shader-render shader.fs --output result.png
 
-# Verify submodule status
-git submodule status
+# AI-friendly output (natural language only)
+isf-shader-render shader.fs --output result.png --ai-info
 ```
 
-**If still empty:**
+**AI-friendly output features:**
+- Natural language error descriptions
+- No terminal colors or formatting
+- No progress bars or status updates
+- Clear, actionable error messages
+- Consistent format for AI parsing
+
+### Batch Rendering
+
+Render multiple shaders with different settings:
+
 ```bash
-# Remove and re-add the submodule
-rm -rf external/VVISF-GL
-git submodule add https://github.com/mrRay/VVISF-GL.git external/VVISF-GL
+# Using configuration file
+isf-shader-render --config config.yaml
+
+# Using multiple time codes
+isf-shader-render shader.fs --output frame_%04d.png --time 0 --time 1 --time 2
 ```
 
-#### 2. **"GLFW3 not found"**
-**Error:** Build fails with GLFW-related errors
+### Shader Inputs
 
-**Solution:**
+Set shader input values:
+
 ```bash
-# macOS
-brew install glfw
+# Set color input
+isf-shader-render shader.fs --output result.png --inputs "color=1.0 0.0 0.0 1.0"
 
-# Ubuntu/Debian
-sudo apt-get install libglfw3-dev
-
-# Windows
-# Install via vcpkg or build from source
+# Set multiple inputs
+isf-shader-render shader.fs --output result.png --inputs "intensity=0.8,position=0.5 0.3,enabled=true"
 ```
 
-**Verify installation:**
+### Error Handling Examples
+
+The renderer provides helpful error messages:
+
 ```bash
-# Check if GLFW is found
-pkg-config --exists glfw3 && echo "GLFW found" || echo "GLFW not found"
+# Missing main function
+isf-shader-render invalid.fs --output result.png --ai-info
+# Output: The shader is missing a main function. ISF shaders require a 'void main()' function to define the fragment shader entry point.
 
-# Check include paths
-ls /opt/homebrew/include/GLFW/glfw3.h 2>/dev/null || ls /usr/local/include/GLFW/glfw3.h 2>/dev/null
+# Syntax error
+isf-shader-render syntax_error.fs --output result.png --ai-info
+# Output: The shader contains syntax errors: Unexpected token '}'. Please check the GLSL syntax and ensure all brackets, semicolons, and function calls are properly formatted.
+
+# File not found
+isf-shader-render missing.fs --output result.png --ai-info
+# Output: File not found: missing.fs. Please check that the file path is correct and the file exists.
 ```
 
-#### 3. **"GLEW not found"**
-**Error:** Build fails with GLEW-related errors
+## Configuration Files
 
-**Solution:**
+Use YAML configuration files for complex batch rendering:
+
+```yaml
+# config.yaml
+defaults:
+  width: 1920
+  height: 1080
+  quality: 95
+  max_texture_size: 4096
+
+shaders:
+  - input: "shaders/red.fs"
+    output: "output/red_%04d.png"
+    times: [0.0, 1.0, 2.0]
+    width: 1280
+    height: 720
+    inputs:
+      intensity: 0.8
+      color: [1.0, 0.0, 0.0, 1.0]
+
+  - input: "shaders/blue.fs"
+    output: "output/blue_%04d.png"
+    times: [0.0, 0.5, 1.0, 1.5, 2.0]
+    inputs:
+      color: [0.0, 0.0, 1.0, 1.0]
+```
+
+## Platform Support
+
+This tool uses the [pyvvisf](https://github.com/jimcortez/pyvvisf) library for high-performance ISF shader rendering:
+
+- **macOS**: Full support (OpenGL, Metal)
+- **Linux**: Full support (OpenGL)
+- **Windows**: Full support (OpenGL)
+
+
+## Development and Testing
+
+### Running Tests
+
 ```bash
-# macOS
-brew install glew
+# Run all tests
+pytest
 
-# Ubuntu/Debian
-sudo apt-get install libglew-dev
+# Run specific test categories
+pytest -m regression  # Run regression tests
+pytest -m stress     # Run stress tests
 
-# Windows
-# Install via vcpkg or build from source
+# Run tests with verbose output
+pytest -v
+
+# Run tests with coverage
+pytest --cov=src/isf_shader_renderer
 ```
-
-**Verify installation:**
-```bash
-# Check if GLEW is found
-pkg-config --exists glew && echo "GLEW found" || echo "GLEW not found"
-
-# Check include paths
-ls /opt/homebrew/include/GL/glew.h 2>/dev/null || ls /usr/local/include/GL/glew.h 2>/dev/null
-```
-
-#### 4. **"Failed to apply GLFW patches"**
-**Error:** Patch application fails during VVISF-GL build
-
-**Solution:**
-```bash
-# Manual patch application
-cd external/VVISF-GL
-patch -p1 < ../../patches/vvisf-glfw-support.patch
-```
-
-**If patch still fails, apply changes manually:**
-
-**Edit `external/VVISF-GL/VVGL/Makefile`:**
-```makefile
-# Find this line:
-CPPFLAGS += -I./include/ -DVVGL_SDK_MAC
-
-# Replace with:
-CPPFLAGS += -I./include/ -DVVGL_SDK_GLFW
-# Add GLFW and GLEW include paths
-CPPFLAGS += -I/opt/homebrew/include
-
-# Find this line:
-LDFLAGS += -framework Foundation -framework ImageIO -framework OpenGL -framework IOSurface -framework CoreGraphics -framework CoreVideo
-
-# Add after it:
-# Add GLFW and GLEW libraries
-LDFLAGS += -L/opt/homebrew/lib -lglfw -lGLEW
-```
-
-**Edit `external/VVISF-GL/VVISF/Makefile`:**
-```makefile
-# Same changes as above for VVGL/Makefile
-```
-
-#### 5. **"Build errors on macOS"**
-**Error:** Various macOS-specific build errors
-
-**Solution:**
-```bash
-# Install Xcode Command Line Tools
-xcode-select --install
-
-# Verify installation
-xcode-select -p
-```
-
-#### 6. **"Architecture mismatch errors"**
-**Error:** Linking fails due to architecture mismatch
-
-**Solution:**
-```bash
-# Check your architecture
-uname -m
-
-# For manual builds, specify architecture
-ARCH=arm64 ./scripts/build_vvisf.sh  # For Apple Silicon
-ARCH=x86_64 ./scripts/build_vvisf.sh # For Intel Macs
-```
-
-#### 7. **"CMake configuration failed"**
-**Error:** CMake can't find dependencies or configure project
-
-**Solution:**
-```bash
-# Clean build directory
-rm -rf build
-mkdir build
-cd build
-
-# Run CMake with verbose output
-cmake -DCMAKE_VERBOSE_MAKEFILE=ON ..
-
-# Check CMake cache
-cat CMakeCache.txt | grep -E "(GLFW|GLEW|VVISF)"
-```
-
-#### 8. **"Submodule modified content"**
-**Error:** Git shows modified content in submodules
-
-**Solution:**
-```bash
-# Check submodule status
-git submodule status
-
-# Reset submodule to clean state
-git submodule update --init --recursive --force
-
-# Or commit the changes if they're intentional
-cd external/VVISF-GL
-git add .
-git commit -m "Apply GLFW modifications"
-```
-
-### Debugging Steps
-
-#### **Step-by-step debugging:**
-1. **Check submodule status:**
-   ```bash
-   git submodule status
-   ls -la external/VVISF-GL/
-   ```
-
-2. **Verify dependencies:**
-   ```bash
-   # Check GLFW
-   pkg-config --modversion glfw3 2>/dev/null || echo "GLFW not found"
-   
-   # Check GLEW
-   pkg-config --modversion glew 2>/dev/null || echo "GLEW not found"
-   
-   # Check CMake
-   cmake --version
-   ```
-
-3. **Test patch application:**
-   ```bash
-   cd external/VVISF-GL
-   patch --dry-run -p1 < ../../patches/vvisf-glfw-support.patch
-   ```
-
-4. **Check architecture compatibility:**
-   ```bash
-   uname -m
-   file external/VVISF-GL/VVGL/bin/libVVGL.a 2>/dev/null || echo "Library not built yet"
-   ```
-
-5. **Run with verbose output:**
-   ```bash
-   # Verbose build script
-   bash -x ./scripts/build_vvisf.sh
-   
-   # Verbose CMake
-   cmake -DCMAKE_VERBOSE_MAKEFILE=ON ..
-   ```
-
-### Platform-Specific Notes
-
-- **macOS**: Uses GLFW for cross-platform OpenGL context creation
-- **Linux**: Uses GLFW with X11 backend
-- **Windows**: Uses GLFW with Win32 backend
-
-### Getting Help
-
-If you're still experiencing issues:
-
-1. **Check the logs:** Look for specific error messages in the build output
-2. **Verify your environment:** Ensure all prerequisites are installed
-3. **Try manual steps:** Follow the manual patch application instructions above
-4. **Check architecture:** Ensure you're building for the correct architecture
-5. **Clean rebuild:** Remove build artifacts and start fresh
-
-**Common environment issues:**
-- Missing Xcode Command Line Tools on macOS
-- Outdated package managers (brew, apt)
-- Incorrect PATH or library search paths
-- Permission issues with system directories
-
-## Current Status
-
-### ✅ Completed (Step 1)
-- **GLFW Integration**: Successfully integrated GLFW for cross-platform OpenGL context creation
-- **VVISF-GL Build System**: Created automated build scripts for VVISF-GL with GLFW support
-- **Git Submodules**: Set up proper dependency management using git submodules
-- **Cross-Platform Support**: Working on macOS with ARM64 architecture
-- **OpenGL Context Creation**: Successfully creating hidden GLFW windows for offscreen rendering
-- **VVISF Scene Creation**: Basic VVISF scene instantiation working
-
-### 🔄 In Progress
-- **Python Bindings**: Planned using pybind11
-- **ISF Shader Loading**: Integration with actual ISF shader files
-- **Rendering Pipeline**: Complete rendering workflow
-
-### 📋 Planned
-- **CLI Interface**: Command-line tool for shader rendering
-- **Configuration System**: YAML-based configuration
-- **Batch Processing**: Multiple shader rendering
-- **Output Formats**: PNG, JPEG, and other image formats
 
 ## License
 
-[Add your license information here]
+MIT License - see [LICENSE](LICENSE) file for details.
 
-## Contributing
 
-[Add contribution guidelines here] 
+## ISF Shader Renderer MCP Server (AI Integration)
+
+The ISF Shader Renderer includes a Model Context Protocol (MCP) server for programmatic shader rendering, validation, and information extraction. This enables integration with AI assistants (like Cursor) and other automated clients.
+
+### Quick Start (MCP Server)
+
+Install with MCP dependencies:
+```bash
+pip install isf-shader-renderer[mcp]
+```
+
+Start the MCP server (stdio mode, recommended for AI tools):
+```bash
+isf-mcp-server --stdio
+```
+
+Or start the HTTP server:
+```bash
+isf-mcp-server --http --port 8000
+```
+
+You can also use the main CLI:
+```bash
+isf-renderer mcp-server --stdio
+# Or HTTP mode
+isf-renderer mcp-server --port 8000
+```
+
+For full details on available tools, parameters, configuration, and integration examples, see:
+- [docs/MCP_SERVER.md](docs/MCP_SERVER.md) 

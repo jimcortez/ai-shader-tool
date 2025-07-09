@@ -186,15 +186,15 @@ def get_file_extension(format_name: str) -> str:
         File extension with leading dot
     """
     format_map = {
-        'png': '.png',
         'jpg': '.jpg',
         'jpeg': '.jpg',
+        'png': '.png',
         'bmp': '.bmp',
         'tiff': '.tiff',
         'tga': '.tga',
     }
     
-    return format_map.get(format_name.lower(), '.png')
+    return format_map.get(format_name.lower(), '.jpg')
 
 
 def calculate_frame_count(start_time: float, end_time: float, fps: float) -> int:
@@ -227,3 +227,12 @@ def generate_time_codes(start_time: float, end_time: float, fps: float) -> List[
     """
     frame_count = calculate_frame_count(start_time, end_time, fps)
     return [start_time + (i / fps) for i in range(frame_count)] 
+
+
+def format_error_for_ai(error, context=""):
+    """Format an error message for AI-friendly output."""
+    return f"Error during {context}: {str(error)}"
+
+def format_success_for_ai(successful_frames):
+    """Format a success message for AI-friendly output."""
+    return f"Successfully rendered {successful_frames} frame(s)." 

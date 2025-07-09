@@ -15,7 +15,7 @@ class Defaults:
     width: int = 1920
     height: int = 1080
     quality: int = 95
-    output_format: str = "png"
+    output_format: str = "jpg"
 
 
 @dataclass
@@ -28,6 +28,7 @@ class ShaderConfig:
     width: Optional[int] = None
     height: Optional[int] = None
     quality: Optional[int] = None
+    inputs: Optional[dict] = None  # Add this line for per-shader inputs
     
     def get_width(self, defaults: Defaults) -> int:
         """Get width, falling back to defaults if not specified."""
@@ -60,7 +61,7 @@ CONFIG_SCHEMA = {
                 "width": {"type": "integer", "minimum": 1},
                 "height": {"type": "integer", "minimum": 1},
                 "quality": {"type": "integer", "minimum": 1, "maximum": 100},
-                "output_format": {"type": "string", "enum": ["png", "jpg", "jpeg"]},
+                "output_format": {"type": "string", "enum": ["jpg", "jpeg", "png"]},
             },
             "additionalProperties": False,
         },
