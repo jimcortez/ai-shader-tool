@@ -33,6 +33,10 @@ dependencies = [
     "jsonschema>=4.0.0",
     "rich>=12.0.0",
     "typer>=0.9.0",
+    "mcp>=1.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "pydantic>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -47,7 +51,8 @@ dev = [
 ]
 
 [project.scripts]
-isf-renderer = "isf_shader_renderer.cli:main"
+isf-renderer = "isf_shader_renderer.cli:app"
+isf-mcp-server = "isf_shader_renderer.mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/yourusername/isf-shader-renderer"

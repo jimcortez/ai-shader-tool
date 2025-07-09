@@ -1,9 +1,9 @@
-/* ISF Shader Example
-   name: Example Wave Shader
-   description: A simple animated wave pattern
-   author: ISF Shader Renderer
-   version: 1.0
-*/
+/*{
+    "DESCRIPTION": "A simple animated wave pattern",
+    "CREDIT": "ISF Shader Renderer",
+    "CATEGORIES": ["Example", "Wave"],
+    "INPUTS": []
+}*/
 
 uniform float TIME;
 uniform vec2 RENDERSIZE;
