@@ -67,8 +67,18 @@ class ShaderRenderer:
                 logger.info(f"Successfully rendered frame to {output_path}")
 
         except Exception as e:
-            logger.error(f"Failed to render frame")
-            raise RuntimeError(f"Failed to render frame: {e}")
+            logger.error(f"Failed to render frame: {e}")
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e),
+            }
+            if hasattr(e, 'error_code'):
+                error_info["error_code"] = getattr(e, 'error_code')
+            if hasattr(e, 'details'):
+                error_info["details"] = getattr(e, 'details')
+            import traceback
+            error_info["traceback"] = traceback.format_exc()
+            raise RuntimeError(error_info)
 
     def _set_shader_inputs(
         self,
@@ -177,6 +187,16 @@ class ShaderRenderer:
                 return True
         except Exception as e:
             logger.error(f"Shader validation failed: {e}")
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e),
+            }
+            if hasattr(e, 'error_code'):
+                error_info["error_code"] = getattr(e, 'error_code')
+            if hasattr(e, 'details'):
+                error_info["details"] = getattr(e, 'details')
+            import traceback
+            error_info["traceback"] = traceback.format_exc()
             return False
 
     def get_shader_info(self, shader_content: str) -> Dict[str, Any]:
@@ -250,12 +270,23 @@ class ShaderRenderer:
                 except Exception as ex:
                     logger.warning(f"Failed to parse ISF JSON block: {ex}")
             logger.warning(f"Failed to extract shader info: {e}")
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e),
+            }
+            if hasattr(e, 'error_code'):
+                error_info["error_code"] = getattr(e, 'error_code')
+            if hasattr(e, 'details'):
+                error_info["details"] = getattr(e, 'details')
+            import traceback
+            error_info["traceback"] = traceback.format_exc()
             return {
                 "type": "ISF",
                 "size": len(shader_content),
                 "lines": len(shader_content.splitlines()),
                 "description": None,
                 "credit": None,
+                "error": error_info,
             }
 
     def cleanup(self) -> None:

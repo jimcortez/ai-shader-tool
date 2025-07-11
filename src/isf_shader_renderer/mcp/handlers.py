@@ -3,9 +3,10 @@
 import base64
 import sys
 import tempfile
+import traceback
 from io import StringIO
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from .models import RenderRequest, RenderResponse, ValidateRequest, ValidateResponse, GetShaderInfoRequest, GetShaderInfoResponse, Resource
 from ..renderer import ShaderRenderer
@@ -48,14 +49,60 @@ class ISFShaderHandlers:
             
             # Validate shader first
             if not self.renderer.validate_shader(request.shader_content):
-                return {
+                # Try to get detailed error information by attempting to render
+                error_info = None
+                detailed_message = "Shader validation failed"
+                
+                try:
+                    # This should fail and give us detailed error info
+                    self.renderer.render_frame(
+                        request.shader_content,
+                        0.0,
+                        Path("/tmp/test_error.png")
+                    )
+                except RuntimeError as e:
+                    if isinstance(e.args[0], dict):
+                        error_info = e.args[0]
+                        # Extract meaningful error message for AI
+                        if "message" in error_info:
+                            detailed_message = error_info["message"]
+                        elif "details" in error_info:
+                            detailed_message = str(error_info["details"])
+                    else:
+                        error_info = {
+                            "type": type(e).__name__,
+                            "message": str(e),
+                            "error_code": None,
+                            "details": None,
+                            "traceback": traceback.format_exc()
+                        }
+                        detailed_message = str(e)
+                except Exception as e:
+                    error_info = {
+                        "type": type(e).__name__,
+                        "message": str(e),
+                        "error_code": None,
+                        "details": None,
+                        "traceback": traceback.format_exc()
+                    }
+                    detailed_message = str(e)
+                
+                # Create AI-friendly error message
+                ai_message = self._format_error_message_for_ai(detailed_message, error_info)
+                
+                response = {
                     "success": False,
-                    "message": "Invalid shader content",
+                    "message": ai_message,
                     "content": [],
                     "metadata": {},
-                    "logs": [f"ERROR: Invalid shader content"],
+                    "logs": [f"ERROR: {detailed_message}"],
                     "shader_info": None
                 }
+                
+                if error_info:
+                    response["error_details"] = error_info
+                
+                return response
             
             # Create output directory for this render session
             import tempfile
@@ -129,13 +176,27 @@ class ISFShaderHandlers:
             }
             
         except Exception as e:
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e),
+            }
+            if hasattr(e, 'error_code'):
+                error_info["error_code"] = getattr(e, 'error_code')
+            if hasattr(e, 'details'):
+                error_info["details"] = getattr(e, 'details')
+            error_info["traceback"] = traceback.format_exc()
+            
+            # Create AI-friendly error message
+            ai_message = self._format_error_message_for_ai(str(e), error_info)
+            
             return {
                 "success": False,
-                "message": f"Error rendering shader: {str(e)}",
+                "message": ai_message,
                 "content": [],
                 "metadata": {},
                 "logs": [f"ERROR: {str(e)}"],
-                "shader_info": None
+                "shader_info": None,
+                "error_details": error_info
             }
         finally:
             # Restore stdout/stderr
@@ -163,6 +224,37 @@ class ISFShaderHandlers:
             
             if not is_valid:
                 errors.append("Shader validation failed")
+                # Try to get detailed error information
+                try:
+                    # This should fail and give us detailed error info
+                    self.renderer.render_frame(
+                        request.shader_content,
+                        0.0,
+                        Path("/tmp/test_error.png")
+                    )
+                except RuntimeError as e:
+                    if isinstance(e.args[0], dict):
+                        error_info = e.args[0]
+                    else:
+                        error_info = {
+                            "type": type(e).__name__,
+                            "message": str(e),
+                            "error_code": None,
+                            "details": None,
+                            "traceback": traceback.format_exc()
+                        }
+                except Exception as e:
+                    error_info = {
+                        "type": type(e).__name__,
+                        "message": str(e),
+                        "error_code": None,
+                        "details": None,
+                        "traceback": traceback.format_exc()
+                    }
+                else:
+                    error_info = None
+            else:
+                error_info = None
             
             # Check for common ISF elements
             content_upper = request.shader_content.upper()
@@ -172,7 +264,7 @@ class ISFShaderHandlers:
             if "RENDERSIZE" not in content_upper:
                 warnings.append("No RENDERSIZE uniform found - shader may not be responsive")
             
-            return ValidateResponse(
+            response = ValidateResponse(
                 success=is_valid and not errors,
                 message="Shader validation completed",
                 shader_info=shader_info,
@@ -180,14 +272,31 @@ class ISFShaderHandlers:
                 warnings=warnings
             ).model_dump()
             
+            if error_info:
+                response["error_details"] = error_info
+            
+            return response
+            
         except Exception as e:
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e),
+            }
+            if hasattr(e, 'error_code'):
+                error_info["error_code"] = getattr(e, 'error_code')
+            if hasattr(e, 'details'):
+                error_info["details"] = getattr(e, 'details')
+            error_info["traceback"] = traceback.format_exc()
+            # Create AI-friendly error message
+            ai_message = self._format_error_message_for_ai(str(e), error_info)
+            
             return ValidateResponse(
                 success=False,
-                message=f"Error validating shader: {str(e)}",
+                message=ai_message,
                 shader_info=None,
                 errors=[str(e)],
                 warnings=[]
-            ).model_dump()
+            ).model_dump() | {"error_details": error_info}
     
     async def _get_shader_info(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Handle shader info extraction requests."""
@@ -206,12 +315,24 @@ class ISFShaderHandlers:
             ).model_dump()
             
         except Exception as e:
+            error_info = {
+                "type": type(e).__name__,
+                "message": str(e),
+            }
+            if hasattr(e, 'error_code'):
+                error_info["error_code"] = getattr(e, 'error_code')
+            if hasattr(e, 'details'):
+                error_info["details"] = getattr(e, 'details')
+            error_info["traceback"] = traceback.format_exc()
+            # Create AI-friendly error message
+            ai_message = self._format_error_message_for_ai(str(e), error_info)
+            
             return GetShaderInfoResponse(
                 success=False,
-                message=f"Error extracting shader info: {str(e)}",
+                message=ai_message,
                 shader_info=None,
                 errors=[str(e)]
-            ).model_dump()
+            ).model_dump() | {"error_details": error_info}
     
     async def list_resources(self) -> List[Resource]:
         """List available resources (shader examples)."""
@@ -321,4 +442,60 @@ void main() {
     
     vec3 color = vec3(1.0 - dist, dist, 0.5);
     gl_FragColor = vec4(color, 1.0);
-}""" 
+}"""
+    
+    def _format_error_message_for_ai(self, error_message: str, error_info: Optional[Dict[str, Any]]) -> str:
+        """
+        Format error messages to be more helpful for AI users.
+        
+        Args:
+            error_message: The raw error message
+            error_info: Detailed error information dictionary
+            
+        Returns:
+            Formatted error message suitable for AI consumption
+        """
+        # Handle common ISF validation errors
+        if "ISF metadata" in error_message:
+            if "validation errors for ISFInput" in error_message:
+                # Extract specific validation errors
+                if "min" in error_message.lower() and "max" in error_message.lower():
+                    return ("ISF metadata validation error: MIN and MAX values for point2D inputs should be single numbers, not arrays. "
+                           "For point2D inputs like 'uOffset', remove the MIN/MAX fields or use single numeric values. "
+                           "Example: Remove 'MIN': [-1.0, -1.0] and 'MAX': [1.0, 1.0] from the uOffset input definition.")
+                
+                return ("ISF metadata validation error: One or more input parameters have invalid MIN/MAX values. "
+                       "Check that MIN and MAX values match the input TYPE (float inputs need single numbers, not arrays).")
+            
+            return ("ISF metadata validation error: The JSON header in the shader contains invalid input definitions. "
+                   "Check that all INPUTS have valid TYPE, DEFAULT, MIN, and MAX values according to ISF specification.")
+        
+        # Handle GLSL compilation errors
+        if "GLSL" in error_message or "compilation" in error_message:
+            return ("GLSL compilation error: The shader code contains syntax errors or invalid GLSL constructs. "
+                   "Check for missing semicolons, undefined variables, or invalid function calls in the shader code.")
+        
+        # Handle missing main function
+        if "main function" in error_message.lower():
+            return ("Shader structure error: The shader is missing a 'void main()' function. "
+                   "Every ISF shader must have a main function that sets gl_FragColor.")
+        
+        # Handle missing gl_FragColor
+        if "gl_FragColor" in error_message.lower():
+            return ("Shader output error: The shader does not assign a value to gl_FragColor. "
+                   "Every ISF shader must set gl_FragColor in the main function.")
+        
+        # Handle empty content
+        if "empty" in error_message.lower():
+            return ("Shader content error: The shader content is empty or contains only whitespace. "
+                   "Please provide valid ISF shader code with a JSON header and main function.")
+        
+        # Handle ISF header errors
+        if "ISF header" in error_message.lower():
+            return ("ISF header error: The shader does not have a valid ISF JSON header. "
+                   "ISF shaders should start with a JSON block like /*{ ... }*/ containing metadata.")
+        
+        # Generic error with suggestions
+        return (f"Shader error: {error_message}. "
+               "Common issues include: invalid ISF metadata, GLSL syntax errors, missing main function, "
+               "or incorrect input parameter definitions. Check the shader code and ISF specification.") 
