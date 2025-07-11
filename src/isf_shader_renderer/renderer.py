@@ -189,6 +189,25 @@ class ShaderRenderer:
         Returns:
             Dictionary containing shader information (full ISF metadata if available)
         """
+        def normalize_isf_metadata_keys(d):
+            # Map ISF JSON keys to lowercase, e.g. DESCRIPTION -> description
+            if not isinstance(d, dict):
+                return d
+            mapping = {
+                "DESCRIPTION": "description",
+                "CREDIT": "credit",
+                "CATEGORIES": "categories",
+                "INPUTS": "inputs",
+                "PASSES": "passes",
+            }
+            out = {mapping.get(k, k.lower()): v for k, v in d.items()}
+            # Always provide description and credit keys (even if None)
+            if "description" not in out:
+                out["description"] = None
+            if "credit" not in out:
+                out["credit"] = None
+            return out
+
         try:
             # Use ISFRenderer to get shader information
             with pyvvisf.ISFRenderer(shader_content) as renderer:
@@ -201,13 +220,42 @@ class ShaderRenderer:
                     "size": len(shader_content),
                     "lines": len(shader_content.splitlines()),
                 })
-                return info
+                norm = normalize_isf_metadata_keys(info)
+                # If description is None, try fallback manual parsing
+                if norm.get("description") is None:
+                    import re, json
+                    match = re.search(r'/\*\{([\s\S]*?)\}\*/', shader_content)
+                    if match:
+                        meta_str = '{' + match.group(1) + '}'
+                        try:
+                            meta = json.loads(meta_str)
+                            fallback = normalize_isf_metadata_keys(meta)
+                            if fallback.get("description"):
+                                norm["description"] = fallback["description"]
+                            if fallback.get("credit"):
+                                norm["credit"] = fallback["credit"]
+                        except Exception as ex:
+                            logger.warning(f"Failed to parse ISF JSON block: {ex}")
+                return norm
         except Exception as e:
+            # Try to parse ISF JSON block manually (robust regex)
+            import re, json
+            match = re.search(r'/\*\{([\s\S]*?)\}\*/', shader_content)
+            if match:
+                meta_str = '{' + match.group(1) + '}'
+                try:
+                    meta = json.loads(meta_str)
+                    out = normalize_isf_metadata_keys(meta)
+                    return out
+                except Exception as ex:
+                    logger.warning(f"Failed to parse ISF JSON block: {ex}")
             logger.warning(f"Failed to extract shader info: {e}")
             return {
                 "type": "ISF",
                 "size": len(shader_content),
                 "lines": len(shader_content.splitlines()),
+                "description": None,
+                "credit": None,
             }
 
     def cleanup(self) -> None:
