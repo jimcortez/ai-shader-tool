@@ -157,12 +157,10 @@ class ShaderRenderer:
             True if the shader is valid, False otherwise
         """
         try:
-            # Use ISFRenderer to validate the shader
+            # Use ISFRenderer to validate the shader and GLSL compilation
             with pyvvisf.ISFRenderer(shader_content) as renderer:
-                # Check if renderer is valid (skip if not available in pyvvisf)
-                if not renderer.is_valid():
+                if hasattr(renderer, 'is_valid') and not renderer.is_valid():
                     return False
-
                 # Check if shader has a main function
                 if (
                     "void main(" not in shader_content
@@ -170,7 +168,12 @@ class ShaderRenderer:
                 ):
                     logger.warning("Shader validation failed: missing main function")
                     return False
-
+                # Try to render a minimal frame to trigger GLSL compilation
+                try:
+                    renderer.render(8, 8, time_offset=0.0)
+                except Exception as glsl_error:
+                    logger.warning(f"Shader validation failed: GLSL error: {glsl_error}")
+                    return False
                 return True
         except Exception as e:
             logger.error(f"Shader validation failed: {e}")
@@ -184,32 +187,27 @@ class ShaderRenderer:
             shader_content: The ISF shader source code
 
         Returns:
-            Dictionary containing shader information
+            Dictionary containing shader information (full ISF metadata if available)
         """
         try:
             # Use ISFRenderer to get shader information
             with pyvvisf.ISFRenderer(shader_content) as renderer:
-                info = renderer.get_shader_info()
-
+                info = None
+                if hasattr(renderer, 'get_shader_info'):
+                    info = renderer.get_shader_info()
                 if info is None:
-                    # Fallback if get_shader_info returns None
                     info = {}
-
-                # Add additional metadata
                 info.update({
                     "size": len(shader_content),
                     "lines": len(shader_content.splitlines()),
                 })
-
                 return info
-
         except Exception as e:
             logger.warning(f"Failed to extract shader info: {e}")
             return {
                 "type": "ISF",
                 "size": len(shader_content),
                 "lines": len(shader_content.splitlines()),
-                "error": str(e),
             }
 
     def cleanup(self) -> None:

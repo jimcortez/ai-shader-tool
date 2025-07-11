@@ -72,8 +72,8 @@ class ISFShaderHandlers:
             rendered_frames = []
             
             for i, time_code in enumerate(request.time_codes):
-                # Create output file path
-                filename = f"frame_{i:03d}_t{time_code:.2f}.jpg"
+                # Create output file path (use PNG)
+                filename = f"frame_{i:03d}_t{time_code:.2f}.png"
                 output_path = output_dir / filename
                 
                 # Render frame
@@ -195,7 +195,7 @@ class ISFShaderHandlers:
             # Parse request
             request = GetShaderInfoRequest(**arguments)
             
-            # Extract shader info
+            # Extract shader info (full ISF metadata)
             shader_info = self.renderer.get_shader_info(request.shader_content)
             
             return GetShaderInfoResponse(

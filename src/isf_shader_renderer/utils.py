@@ -186,9 +186,9 @@ def get_file_extension(format_name: str) -> str:
         File extension with leading dot
     """
     format_map = {
+        'png': '.png',
         'jpg': '.jpg',
         'jpeg': '.jpg',
-        'png': '.png',
         'bmp': '.bmp',
         'tiff': '.tiff',
         'tga': '.tga',
