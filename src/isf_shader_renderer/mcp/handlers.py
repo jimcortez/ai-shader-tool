@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 
 from .models import RenderRequest, RenderResponse, ValidateRequest, ValidateResponse, GetShaderInfoRequest, GetShaderInfoResponse, Resource
 from ..renderer import ShaderRenderer
-from ..config import Config
+from ..config import ShaderRendererConfig
 from .utils import encode_image_to_base64
 
 
@@ -18,7 +18,7 @@ class ISFShaderHandlers:
     
     def __init__(self):
         """Initialize handlers with default configuration."""
-        self.config = Config()
+        self.config = ShaderRendererConfig()
         self.renderer = ShaderRenderer(self.config)
     
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
