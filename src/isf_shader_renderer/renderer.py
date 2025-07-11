@@ -4,10 +4,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from pyvvisf import ISFRenderer
+import pyvvisf
 from PIL import Image
 
-from .config import ShaderConfig, Config
+from .config import ShaderConfig, ShaderRendererConfig
 
 # Force logger to print INFO-level logs to stdout
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ShaderRenderer:
     """Main renderer class for ISF shaders using VVISF."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: ShaderRendererConfig):
         """Initialize the renderer with configuration."""
         self.config = config
         self._current_shader: Optional[str] = None
@@ -44,7 +44,7 @@ class ShaderRenderer:
 
         # Render using the new ISFRenderer class
         try:
-            with ISFRenderer(shader_content) as renderer:
+            with pyvvisf.ISFRenderer(shader_content) as renderer:
                 # Set shader inputs if provided
                 self._set_shader_inputs(renderer, shader_config, time_code, width, height)
 
@@ -158,8 +158,11 @@ class ShaderRenderer:
         """
         try:
             # Use ISFRenderer to validate the shader
-            with ISFRenderer(shader_content) as renderer:
+            with pyvvisf.ISFRenderer(shader_content) as renderer:
                 # Check if renderer is valid (skip if not available in pyvvisf)
+                if not renderer.is_valid():
+                    return False
+
                 # Check if shader has a main function
                 if (
                     "void main(" not in shader_content
@@ -184,12 +187,22 @@ class ShaderRenderer:
             Dictionary containing shader information
         """
         try:
-            # Use ISFRenderer to get shader information (skip if not available in pyvvisf)
-            info = {
-                "size": len(shader_content),
-                "lines": len(shader_content.splitlines()),
-            }
-            return info
+            # Use ISFRenderer to get shader information
+            with pyvvisf.ISFRenderer(shader_content) as renderer:
+                info = renderer.get_shader_info()
+
+                if info is None:
+                    # Fallback if get_shader_info returns None
+                    info = {}
+
+                # Add additional metadata
+                info.update({
+                    "size": len(shader_content),
+                    "lines": len(shader_content.splitlines()),
+                })
+
+                return info
+
         except Exception as e:
             logger.warning(f"Failed to extract shader info: {e}")
             return {
@@ -201,4 +214,5 @@ class ShaderRenderer:
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        logger.info("Cleanup completed.") 
+        # Note: ISFRenderer handles its own cleanup via context manager
+        logger.info("Cleanup completed.")

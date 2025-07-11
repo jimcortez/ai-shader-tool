@@ -1,5 +1,5 @@
 # External
-external/
+#external/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -188,4 +188,4 @@ output/
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp

@@ -168,7 +168,6 @@ pytest --cov=src/isf_shader_renderer
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-
 ## ISF Shader Renderer MCP Server (AI Integration)
 
 The ISF Shader Renderer includes a Model Context Protocol (MCP) server for programmatic shader rendering, validation, and information extraction. This enables integration with AI assistants (like Cursor) and other automated clients.
@@ -189,13 +188,3 @@ Or start the HTTP server:
 ```bash
 isf-mcp-server --http --port 8000
 ```
-
-You can also use the main CLI:
-```bash
-isf-renderer mcp-server --stdio
-# Or HTTP mode
-isf-renderer mcp-server --port 8000
-```
-
-For full details on available tools, parameters, configuration, and integration examples, see:
-- [docs/MCP_SERVER.md](docs/MCP_SERVER.md) 

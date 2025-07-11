@@ -1,57 +1,46 @@
-"""Configuration management for ISF Shader Renderer."""
+"""Configuration management for ISF Shader Renderer (ShaderRendererConfig)."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import yaml
 from jsonschema import validate
 
-
 @dataclass
 class Defaults:
     """Default configuration settings."""
-    
     width: int = 1920
     height: int = 1080
     quality: int = 95
-    output_format: str = "jpg"
-
+    output_format: str = "png"
 
 @dataclass
 class ShaderConfig:
     """Configuration for a single shader."""
-    
     input: str
     output: str
     times: List[float]
     width: Optional[int] = None
     height: Optional[int] = None
     quality: Optional[int] = None
-    inputs: Optional[dict] = None  # Add this line for per-shader inputs
-    
+    inputs: Optional[Dict[str, Any]] = None
+
     def get_width(self, defaults: Defaults) -> int:
-        """Get width, falling back to defaults if not specified."""
         return self.width if self.width is not None else defaults.width
-    
+
     def get_height(self, defaults: Defaults) -> int:
-        """Get height, falling back to defaults if not specified."""
         return self.height if self.height is not None else defaults.height
-    
+
     def get_quality(self, defaults: Defaults) -> int:
-        """Get quality, falling back to defaults if not specified."""
         return self.quality if self.quality is not None else defaults.quality
 
-
 @dataclass
-class Config:
-    """Main configuration class."""
-    
+class ShaderRendererConfig:
+    """Main configuration class for the ISF Shader Renderer."""
     defaults: Defaults = field(default_factory=Defaults)
     shaders: List[ShaderConfig] = field(default_factory=list)
 
-
-# JSON Schema for configuration validation
 CONFIG_SCHEMA = {
     "type": "object",
     "properties": {
@@ -61,7 +50,7 @@ CONFIG_SCHEMA = {
                 "width": {"type": "integer", "minimum": 1},
                 "height": {"type": "integer", "minimum": 1},
                 "quality": {"type": "integer", "minimum": 1, "maximum": 100},
-                "output_format": {"type": "string", "enum": ["jpg", "jpeg", "png"]},
+                "output_format": {"type": "string", "enum": ["png", "jpg", "jpeg"]},
             },
             "additionalProperties": False,
         },
@@ -81,6 +70,7 @@ CONFIG_SCHEMA = {
                     "width": {"type": "integer", "minimum": 1},
                     "height": {"type": "integer", "minimum": 1},
                     "quality": {"type": "integer", "minimum": 1, "maximum": 100},
+                    "inputs": {"type": "object"},
                 },
                 "additionalProperties": False,
             },
@@ -89,25 +79,16 @@ CONFIG_SCHEMA = {
     "additionalProperties": False,
 }
 
-
-def load_config(config_path: Path) -> Config:
-    """Load configuration from YAML file."""
+def load_config(config_path: Path) -> ShaderRendererConfig:
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    
     with open(config_path, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
-    
-    # Validate configuration
     try:
         validate(instance=data, schema=CONFIG_SCHEMA)
     except Exception as e:
         raise ValueError(f"Invalid configuration format: {e}")
-    
-    # Parse configuration
-    config = Config()
-    
-    # Parse defaults
+    config = ShaderRendererConfig()
     if "defaults" in data:
         defaults_data = data["defaults"]
         config.defaults = Defaults(
@@ -116,8 +97,6 @@ def load_config(config_path: Path) -> Config:
             quality=defaults_data.get("quality", 95),
             output_format=defaults_data.get("output_format", "png"),
         )
-    
-    # Parse shaders
     if "shaders" in data:
         for shader_data in data["shaders"]:
             shader_config = ShaderConfig(
@@ -127,14 +106,12 @@ def load_config(config_path: Path) -> Config:
                 width=shader_data.get("width"),
                 height=shader_data.get("height"),
                 quality=shader_data.get("quality"),
+                inputs=shader_data.get("inputs"),
             )
             config.shaders.append(shader_config)
-    
     return config
 
-
-def save_config(config: Config, config_path: Path) -> None:
-    """Save configuration to YAML file."""
+def save_config(config: ShaderRendererConfig, config_path: Path) -> None:
     data = {
         "defaults": {
             "width": config.defaults.width,
@@ -150,20 +127,16 @@ def save_config(config: Config, config_path: Path) -> None:
                 **({"width": shader.width} if shader.width is not None else {}),
                 **({"height": shader.height} if shader.height is not None else {}),
                 **({"quality": shader.quality} if shader.quality is not None else {}),
+                **({"inputs": shader.inputs} if shader.inputs is not None else {}),
             }
             for shader in config.shaders
         ],
     }
-    
     with open(config_path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, default_flow_style=False, indent=2)
 
-
 def create_default_config(config_path: Path) -> None:
-    """Create a default configuration file."""
-    config = Config()
-    
-    # Add example shader
+    config = ShaderRendererConfig()
     example_shader = ShaderConfig(
         input="shaders/example.fs",
         output="output/example_%04d.png",
@@ -172,5 +145,4 @@ def create_default_config(config_path: Path) -> None:
         height=720,
     )
     config.shaders.append(example_shader)
-    
-    save_config(config, config_path) 
+    save_config(config, config_path)

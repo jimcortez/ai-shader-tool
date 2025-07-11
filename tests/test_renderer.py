@@ -8,24 +8,19 @@ from PIL import Image
 import numpy as np
 import os
 
-from isf_shader_renderer.config import Config, ShaderConfig, Defaults
+from isf_shader_renderer.config import ShaderRendererConfig, ShaderConfig, Defaults
 from isf_shader_renderer.renderer import ShaderRenderer
-
 
 class TestShaderRenderer:
     """Test ShaderRenderer class."""
-
     def test_renderer_creation(self):
-        """Test creating ShaderRenderer."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         assert renderer.config == config
 
     def test_render_frame_basic(self):
-        """Test basic frame rendering."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
-
         shader_content = """/*{
     \"DESCRIPTION\": \"Test shader\",
     \"CREDIT\": \"Test\",
@@ -33,26 +28,19 @@ class TestShaderRenderer:
     \"INPUTS\": []
 }*/
 void main() { gl_FragColor = vec4(1.0); }"""
-
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
             output_path = Path(f.name)
-
         try:
             renderer.render_frame(shader_content, 1.0, output_path)
-
-            # Check that file was created
             assert output_path.exists()
-
-            # Check that it's a valid image
             image = Image.open(output_path)
-            assert image.size == (1920, 1080)  # Default size
+            assert image.size == (1920, 1080)
             assert image.mode == 'RGBA'
         finally:
             output_path.unlink()
 
     def test_render_frame_with_shader_config(self):
-        """Test frame rendering with shader-specific configuration."""
-        config = Config()
+        config = ShaderRendererConfig()
         shader_config = ShaderConfig(
             input="test.fs",
             output="output.png",
@@ -62,7 +50,6 @@ void main() { gl_FragColor = vec4(1.0); }"""
             quality=80,
         )
         config.shaders.append(shader_config)
-
         renderer = ShaderRenderer(config)
         shader_content = """/*{
     \"DESCRIPTION\": \"Test shader\",
@@ -71,45 +58,30 @@ void main() { gl_FragColor = vec4(1.0); }"""
     \"INPUTS\": []
 }*/
 void main() { gl_FragColor = vec4(1.0); }"""
-
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
             output_path = Path(f.name)
-
         try:
             renderer.render_frame(shader_content, 1.0, output_path, shader_config)
-
-            # Check that file was created
             assert output_path.exists()
-
-            # Check that it's a valid image with custom size
             image = Image.open(output_path)
             assert image.size == (640, 480)
             assert image.mode == 'RGBA'
         finally:
             output_path.unlink()
 
+    @pytest.mark.regression
     def test_custom_dimensions_rendering(self):
-        """Test rendering with custom dimensions using the new ISFRenderer interface.
-
-        This test verifies that the new ISFRenderer approach handles custom dimensions
-        correctly without the segfault issues of the old API.
-        """
-        config = Config()
-
-        # This specific configuration previously caused segfaults
+        config = ShaderRendererConfig()
         shader_config = ShaderConfig(
             input="test.fs",
             output="output.png",
             times=[0.0],
-            width=640,  # Non-default dimension (was problematic)
-            height=480, # Non-default dimension (was problematic)
+            width=640,
+            height=480,
             quality=80,
         )
         config.shaders.append(shader_config)
-
         renderer = ShaderRenderer(config)
-
-        # Simple ISF shader that previously triggered crashes
         shader_content = '''/*{
     "DESCRIPTION": "Test shader",
     "CREDIT": "Test",
@@ -117,15 +89,10 @@ void main() { gl_FragColor = vec4(1.0); }"""
     "INPUTS": []
 }*/
 void main() { gl_FragColor = vec4(1.0); }'''
-
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
             output_path = Path(f.name)
-
         try:
-            # This call previously crashed with Bus error: 10
             renderer.render_frame(shader_content, 1.0, output_path, shader_config)
-
-            # Verify successful rendering
             assert output_path.exists()
             image = Image.open(output_path)
             assert image.size == (640, 480)
@@ -133,19 +100,43 @@ void main() { gl_FragColor = vec4(1.0); }'''
         finally:
             output_path.unlink()
 
-    
-    def test_simple_rendering_without_framework(self):
-        """Test simple rendering directly with pyvvisf using the new ISFRenderer interface.
-
-        This test verifies that the new ISFRenderer approach works correctly
-        and doesn't have the segfault issues of the old API.
-        """
+    @pytest.mark.regression
+    def test_basic_pyvvisf_operations(self):
         try:
             import pyvvisf
         except ImportError:
             pytest.skip("pyvvisf not available")
+        platform_info = pyvvisf.get_platform_info()
+        assert platform_info is not None
+        available = pyvvisf.is_vvisf_available()
+        assert isinstance(available, bool)
+        gl_info = pyvvisf.get_gl_info()
+        assert gl_info is not None
+        size = pyvvisf.Size(100, 100)
+        assert size.width == 100
+        assert size.height == 100
+        shader_content = """/*{
+            "DESCRIPTION": "Test shader",
+            "CREDIT": "Test",
+            "CATEGORIES": ["Test"],
+            "INPUTS": []
+        }*/
+        void main() {
+            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        }"""
+        with pyvvisf.ISFRenderer(shader_content) as renderer:
+            assert renderer.is_valid()
+            buffer = renderer.render(100, 100)
+            assert buffer is not None
+            info = renderer.get_shader_info()
+            assert info is not None
 
-        # Create a simple ISF shader
+    @pytest.mark.regression
+    def test_simple_rendering_without_framework(self):
+        try:
+            import pyvvisf
+        except ImportError:
+            pytest.skip("pyvvisf not available")
         shader_content = """/*{
             "DESCRIPTION": "Simple test shader",
             "CREDIT": "Test",
@@ -155,60 +146,48 @@ void main() { gl_FragColor = vec4(1.0); }'''
         void main() {
             gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
         }"""
-
-        # Use the new ISFRenderer interface
         with pyvvisf.ISFRenderer(shader_content) as renderer:
-            # Render the shader
             buffer = renderer.render(100, 100)
-
             assert buffer is not None
             image = buffer.to_pil_image()
             assert image.size == (100, 100)
             assert image.mode == 'RGBA'
 
+    @pytest.mark.stress
     def test_multiple_renders_stress_test(self):
-        """Stress test multiple renders to catch stability issues.
-
-        This test reproduces the batch rendering patterns that were causing
-        segfaults to ensure we catch regressions in stability.
-        """
-        config = Config()
-        config.defaults = Defaults(width=64, height=64, quality=90)
+        config = ShaderRendererConfig()
+        shader_config = ShaderConfig(
+            input="test.fs",
+            output="output.png",
+            times=[0.0],
+            width=640,
+            height=480,
+            quality=80,
+        )
+        config.shaders.append(shader_config)
         renderer = ShaderRenderer(config)
-
         shader_content = '''/*{
-            "DESCRIPTION": "Stress test shader",
-            "CREDIT": "Test",
-            "CATEGORIES": ["Test"],
-            "INPUTS": []
-        }*/
-        void main() { gl_FragColor = vec4(0.5, 0.5, 0.5, 1.0); }'''
-
-        # Test multiple renders (previously caused batch rendering crashes)
-        output_paths = []
-        try:
-            for i in range(5):  # Reduced from 10 to avoid overwhelming CI
-                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-                    output_path = Path(f.name)
-                    output_paths.append(output_path)
-
-                # This loop previously caused segfaults
-                renderer.render_frame(shader_content, float(i), output_path)
-
-                # Verify each render
+    "DESCRIPTION": "Test shader",
+    "CREDIT": "Test",
+    "CATEGORIES": ["Test"],
+    "INPUTS": []
+}*/
+void main() { gl_FragColor = vec4(1.0); }'''
+        for _ in range(10):
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                output_path = Path(f.name)
+            try:
+                renderer.render_frame(shader_content, 1.0, output_path, shader_config)
                 assert output_path.exists()
                 image = Image.open(output_path)
-                assert image.size == (64, 64)
+                assert image.size == (640, 480)
                 assert image.mode == 'RGBA'
-        finally:
-            # Cleanup all files
-            for path in output_paths:
-                if path.exists():
-                    path.unlink()
+            finally:
+                output_path.unlink()
 
     def test_validate_shader(self):
         """Test shader validation."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
 
         # Valid ISF shader
@@ -229,7 +208,7 @@ void main() {
 
     def test_get_shader_info(self):
         """Test shader info extraction."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
 
         shader_content = """/*{
@@ -250,7 +229,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
 
     def test_shader_validation_edge_cases(self):
         """Test shader validation with edge cases."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
 
         # Test whitespace-only shader
@@ -267,7 +246,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
 
     def test_render_frame_creates_directory(self):
         """Test that render_frame creates output directory if needed."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
 
         shader_content = """/*{
@@ -290,7 +269,7 @@ void main() { gl_FragColor = vec4(1.0); }"""
 
     def test_render_complex_eye_shader(self):
         """Test rendering a complex, known-good ISF shader (spherical eye)."""
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
 
         shader_content = """/*{
@@ -368,7 +347,7 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
         }"""
 
         # Set up config and renderer
-        config = Config()
+        config = ShaderRendererConfig()
         config.defaults = Defaults(width=8, height=8, quality=95)
         shader_config = ShaderConfig(
             input="test.fs",
@@ -402,6 +381,7 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
 
     def test_multiple_renders_same_size(self, tmp_path):
         """Test that ShaderRenderer can handle multiple renders of the same size using the new ISFRenderer approach."""
+        from PIL import Image
 
         # Simple ISF shader
         shader_content = """/*{
@@ -412,7 +392,7 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
         }*/
         void main() { gl_FragColor = vec4(0.1, 0.2, 0.3, 1.0); }"""
 
-        config = Config()
+        config = ShaderRendererConfig()
         config.defaults = Defaults(width=64, height=64, quality=90)
         renderer = ShaderRenderer(config)
 
@@ -443,6 +423,10 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
 
     def test_shader_with_non_constant_loop_condition_fails(self):
         """Test that a shader with a non-constant loop condition fails with the expected GLSL error and does not generate an image file."""
+        import pytest
+        from isf_shader_renderer.renderer import ShaderRenderer
+        from isf_shader_renderer.config import ShaderRendererConfig
+        import os
 
         # Shader with non-constant loop condition that should fail GLSL compilation
         failing_shader = """/*{
@@ -460,7 +444,7 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
         gl_FragColor = col;
     }"""
 
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         output_path = Path("test_should_not_exist.png")
 
@@ -476,16 +460,20 @@ void main() { vec2 uv = isf_FragNormCoord; vec3 spherePos = uvToSphere(uv); vec2
         Note: The current validate_shader method primarily validates ISF metadata format,
         not GLSL syntax. It only fails for empty strings, whitespace, or invalid JSON.
         """
+        import pytest
+        from isf_shader_renderer.renderer import ShaderRenderer
+        from isf_shader_renderer.config import ShaderRendererConfig
+        import os
 
         # Empty shader that should fail validation
         invalid_shader = ""
 
-        config = Config()
+        config = ShaderRendererConfig()
         renderer = ShaderRenderer(config)
         output_path = Path("test_should_not_exist2.png")
 
         # The shader should fail validation and not produce an image file
         assert not renderer.validate_shader(invalid_shader), "Shader validation should fail for empty shader"
-        with pytest.raises(RuntimeError, match=r"Shader content is empty or only whitespace. Please provide valid ISF shader code."):
+        with pytest.raises(RuntimeError, match="Shader validation failed: shader is invalid. No image will be generated."):
             renderer.render_frame(invalid_shader, 1.0, output_path)
         assert not output_path.exists(), "No image file should be created for invalid shader"
